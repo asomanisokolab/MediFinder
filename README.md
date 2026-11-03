@@ -67,11 +67,13 @@ supplies PostgreSQL with PostGIS and configures the API to connect to it.
 
 ## Deploy to a DigitalOcean Droplet
 
-The included Docker Compose setup runs the API, PostgreSQL with PostGIS, and a
-Caddy reverse proxy that provisions HTTPS certificates. Use a fresh Ubuntu
-Droplet and a domain whose DNS `A` record points to the Droplet's public IP.
-Allow inbound SSH (preferably restricted to your IP), HTTP, and HTTPS in the
-DigitalOcean firewall. The PostgreSQL port is not exposed publicly.
+The Docker Compose setup runs the API and PostgreSQL with PostGIS. The API is
+published only on `127.0.0.1:8000`, for a host-level Caddy reverse proxy. This
+allows Caddy to serve MediFinder alongside other projects without competing
+for ports 80 or 443. Use an Ubuntu Droplet and point your domain's DNS `A`
+record to its public IP. Allow inbound SSH (preferably restricted to your IP),
+HTTP, and HTTPS in the DigitalOcean firewall; do not expose PostgreSQL or
+port 8000 publicly.
 
 1. Install Docker Engine and the Docker Compose plugin on the Droplet using
    [Docker's Ubuntu instructions](https://docs.docker.com/engine/install/ubuntu/).
@@ -84,10 +86,10 @@ DigitalOcean firewall. The PostgreSQL port is not exposed publicly.
    nano .env
    ```
 
-3. Set `DOMAIN` to your DNS name. Replace `POSTGRES_PASSWORD` with a long,
-   alphanumeric random value, and `MEDIFINDER_JWT_SECRET` with a different
-   random secret (for example, generate one using `openssl rand -hex 32`).
-   Keep `.env` private; it is excluded from Git.
+3. Set `DOMAIN` to your DNS name. Replace `POSTGRES_PASSWORD` with a strong
+   password and `MEDIFINDER_JWT_SECRET` with a different random secret (for
+   example, generate them with `openssl rand -hex 32`). Keep `.env` private;
+   it is excluded from Git.
 4. Build the containers, start PostgreSQL, seed the demo data, and start all
    services:
 
@@ -98,9 +100,29 @@ DigitalOcean firewall. The PostgreSQL port is not exposed publicly.
    docker compose up -d
    ```
 
-5. Visit `https://your-domain.example` and check
-   `https://your-domain.example/api/v1/health`. Caddy obtains and renews the
-   TLS certificate automatically. The health endpoint should report
+5. Add a site block for your domain to the existing host Caddyfile (for
+   example, `/etc/caddy/Caddyfile`). Do not replace the file or remove other
+   projects' site blocks:
+
+   ```caddy
+   findcareghana.com {
+       encode zstd gzip
+       reverse_proxy 127.0.0.1:8000
+   }
+   ```
+
+   Replace `findcareghana.com` if using a different domain. Validate and reload
+   the host Caddy service:
+
+   ```bash
+   sudo caddy validate --config /etc/caddy/Caddyfile
+   sudo systemctl reload caddy
+   ```
+
+6. Visit `https://findcareghana.com` and check
+   `https://findcareghana.com/api/v1/health`. Ensure DNS resolves to the
+   Droplet and ports 80/443 reach the host Caddy service; Caddy obtains and
+   renews the TLS certificate automatically. The health endpoint should report
    `"database": "postgresql"` and `"data_verified": false`.
 
 The seed data is unverified demo data: the phone numbers are placeholders and

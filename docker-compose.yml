@@ -17,6 +17,8 @@ services:
   app:
     build: .
     restart: unless-stopped
+    ports:
+      - "127.0.0.1:8000:8000"
     environment:
       MEDIFINDER_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       MEDIFINDER_JWT_SECRET: ${MEDIFINDER_JWT_SECRET:?Set MEDIFINDER_JWT_SECRET in .env}
@@ -26,23 +28,5 @@ services:
       db:
         condition: service_healthy
 
-  caddy:
-    image: caddy:2
-    restart: unless-stopped
-    environment:
-      DOMAIN: ${DOMAIN:?Set DOMAIN in .env}
-    ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-    depends_on:
-      - app
-
 volumes:
   postgres_data:
-  caddy_data:
-  caddy_config:
