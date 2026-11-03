@@ -356,9 +356,26 @@ def seed(reset: bool = False) -> None:
         db.close()
 
 
+def clear_database() -> None:
+    Base.metadata.drop_all(bind=engine)
+    Base.metadata.create_all(bind=engine)
+    print("Cleared all application data. The database is empty and ready for real data.")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Seed the MediFinder database.")
-    parser.add_argument("--reset", action="store_true", help="Drop and rebuild all tables")
+    actions = parser.add_mutually_exclusive_group()
+    actions.add_argument(
+        "--reset", action="store_true", help="Drop, rebuild, and seed all tables"
+    )
+    actions.add_argument(
+        "--empty",
+        action="store_true",
+        help="Drop and rebuild all tables without inserting seed data",
+    )
     args = parser.parse_args()
-    seed(reset=args.reset)
+    if args.empty:
+        clear_database()
+    else:
+        seed(reset=args.reset)
     sys.exit(0)

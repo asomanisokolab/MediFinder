@@ -57,25 +57,74 @@ staleness rule, and admin authorisation boundaries.
 
 ---
 
-## Swapping SQLite for PostgreSQL + PostGIS
+## Database
 
-The MVP runs on SQLite. The swap is a config change plus one dialect branch —
-no model, route or frontend changes.
+SQLite remains the default for local development. Production uses PostgreSQL
+with PostGIS; set `MEDIFINDER_DATABASE_URL` to a
+`postgresql+psycopg://user:password@host:5432/medifinder` URL. PostGIS provides
+the distance functions used by the API. The Docker Compose deployment below
+supplies PostgreSQL with PostGIS and configures the API to connect to it.
 
-1. `pip install "psycopg[binary]"`
-2. Create the database and enable PostGIS: `CREATE EXTENSION postgis;`
-3. Set the URL and reseed:
+## Deploy to a DigitalOcean Droplet
+
+The included Docker Compose setup runs the API, PostgreSQL with PostGIS, and a
+Caddy reverse proxy that provisions HTTPS certificates. Use a fresh Ubuntu
+Droplet and a domain whose DNS `A` record points to the Droplet's public IP.
+Allow inbound SSH (preferably restricted to your IP), HTTP, and HTTPS in the
+DigitalOcean firewall. The PostgreSQL port is not exposed publicly.
+
+1. Install Docker Engine and the Docker Compose plugin on the Droplet using
+   [Docker's Ubuntu instructions](https://docs.docker.com/engine/install/ubuntu/).
+2. Clone the repository and configure production settings:
+
+   ```bash
+   git clone https://github.com/asomanisokolab/MediFinder.git
+   cd MediFinder
+   cp .env.example .env
+   nano .env
+   ```
+
+3. Set `DOMAIN` to your DNS name. Replace `POSTGRES_PASSWORD` with a long,
+   alphanumeric random value, and `MEDIFINDER_JWT_SECRET` with a different
+   random secret (for example, generate one using `openssl rand -hex 32`).
+   Keep `.env` private; it is excluded from Git.
+4. Build the containers, start PostgreSQL, seed the demo data, and start all
+   services:
+
+   ```bash
+   docker compose build
+   docker compose up -d db
+   docker compose run --rm app python -m app.seed --reset
+   docker compose up -d
+   ```
+
+5. Visit `https://your-domain.example` and check
+   `https://your-domain.example/api/v1/health`. Caddy obtains and renews the
+   TLS certificate automatically. The health endpoint should report
+   `"database": "postgresql"` and `"data_verified": false`.
+
+The seed data is unverified demo data: the phone numbers are placeholders and
+do not connect. Change both demo administrator passwords before sharing this
+deployment. Do not mark the directory verified or rely on it for emergencies.
+
+Useful commands, run from the cloned repository:
 
 ```bash
-export MEDIFINDER_DATABASE_URL="postgresql+psycopg://user:pw@host/medifinder"
-python -m app.seed --reset
+docker compose logs -f app       # application logs
+docker compose up -d --build     # deploy updated application code
+docker compose down              # stop services; database volume is retained
 ```
 
-`app/geo.py` detects the dialect and switches from the SQLite `haversine_km`
-function (registered in `app/database.py`) to PostGIS `ST_DistanceSphere`.
-Everything else is dialect-agnostic. When the dataset outgrows a sequential
-scan, add a `geography(Point,4326)` column with a GiST index and change only
-`distance_km_expr()`.
+The `postgres_data` volume persists records across container restarts and
+deployments. Back it up before destructive operations. **When you are ready to
+replace the seed data with real records**, first back up anything you need,
+then run `docker compose run --rm app python -m app.seed --empty`. This drops
+and recreates all application tables without inserting seed records, ready for
+real data to be loaded. This erases all current records, so do not run it after
+entering real data unless you intend to erase them. Use `--reset` only when you
+want to replace the contents with the demo seed again.
+Schema changes to an existing production database should use migrations;
+SQLAlchemy `create_all` only creates missing tables.
 
 ### Environment variables
 

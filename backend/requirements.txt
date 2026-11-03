@@ -10,4 +10,4 @@ bcrypt>=3.2
 # MEDIFINDER_DATABASE_URL=postgresql+psycopg://user:pw@host/medifinder
 # then run `python -m app.seed --reset`. geo.py switches to ST_DistanceSphere
 # automatically once the dialect reports postgresql.
-# psycopg[binary]>=3.1
+psycopg[binary]>=3.1
