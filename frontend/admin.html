@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Administrator — MediFinder Ghana</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#1a56db">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="site">
+  <div class="wrap">
+    <a class="brand" href="index.html">MediFinder Ghana</a>
+    <nav aria-label="Main">
+      <a href="index.html">Find care</a>
+      <a href="ambulance.html">Ambulance</a>
+      <a href="admin.html">Admin</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main" class="wrap">
+  <section id="login-view">
+    <h1>Administrator sign in</h1>
+    <p class="lede">For facility and ambulance provider staff who keep their profile current.</p>
+    <div id="login-message"></div>
+    <form id="login-form" class="card" style="max-width:420px">
+      <div class="field">
+        <label for="email">Email</label>
+        <input type="email" id="email" autocomplete="username" required>
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <input type="password" id="password" autocomplete="current-password" required minlength="8">
+      </div>
+      <button type="submit" id="login-btn">Sign in</button>
+    </form>
+  </section>
+
+  <section id="dashboard-view" hidden aria-live="polite"></section>
+
+  <footer class="site">
+    <p>MediFinder Ghana · Admin dashboard v1 · Sessions expire after 8 hours.</p>
+  </footer>
+</main>
+
+<script src="js/api.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/admin.js"></script>
+</body>
+</html>

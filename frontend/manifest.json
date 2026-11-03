@@ -1,0 +1,33 @@
+{
+  "name": "MediFinder Ghana",
+  "short_name": "MediFinder",
+  "description": "Find medical facilities, dental care and ambulance providers across the 16 regions of Ghana.",
+  "start_url": "index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f7f8fa",
+  "theme_color": "#1a56db",
+  "lang": "en-GH",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Emergency",
+      "short_name": "Emergency",
+      "description": "Nearest open facilities and ambulance providers",
+      "url": "index.html?emergency=1"
+    },
+    {
+      "name": "Ambulance providers",
+      "short_name": "Ambulance",
+      "url": "ambulance.html"
+    }
+  ]
+}

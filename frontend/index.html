@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MediFinder Ghana — Find medical facilities and ambulances</title>
+<meta name="description" content="Find hospitals, clinics, dental care and ambulance providers across all 16 regions of Ghana. Search by location, service and insurance.">
+<meta name="theme-color" content="#1a56db">
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="site">
+  <div class="wrap">
+    <a class="brand" href="index.html">MediFinder Ghana</a>
+    <nav aria-label="Main">
+      <a href="index.html">Find care</a>
+      <a href="ambulance.html">Ambulance</a>
+      <a href="admin.html">Admin</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main" class="wrap">
+  <h1>Find care near you</h1>
+  <p class="lede">Hospitals, clinics, dental care and ambulance providers across all 16 regions of Ghana.</p>
+
+  <div id="banner"></div>
+
+  <button type="button" class="emergency-cta" id="emergency-btn">
+    Emergency — find help now
+  </button>
+  <p class="notice">No sign in needed. Shows the nearest open facilities and the ambulance providers covering your area.</p>
+
+  <section id="emergency-panel" hidden aria-live="polite"></section>
+
+  <h2>Search</h2>
+  <form id="search-form">
+    <div class="field">
+      <label for="q">Facility name, town or city</label>
+      <input type="text" id="q" name="q" autocomplete="off" placeholder="e.g. Korle Bu, Tamale, Ho">
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label for="region">Region</label>
+        <select id="region" name="region">
+          <option value="">All regions</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="city">City or town</label>
+        <select id="city" name="city">
+          <option value="">All</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="row">
+      <button type="submit">Search</button>
+      <button type="button" class="secondary" id="locate-btn">Use my location</button>
+    </div>
+    <p class="notice" id="locate-status" role="status"></p>
+
+    <details class="filters">
+      <summary>More filters</summary>
+      <div class="body">
+        <fieldset style="border:0;padding:0;margin:0 0 12px">
+          <legend style="font-size:14px;font-weight:600;padding:0">Services needed</legend>
+          <div class="checks" id="service-checks"></div>
+        </fieldset>
+
+        <div class="row">
+          <div class="field">
+            <label for="service-other">Another service</label>
+            <select id="service-other"><option value="">Any</option></select>
+          </div>
+          <div class="field">
+            <label for="insurance">Insurance accepted</label>
+            <select id="insurance"><option value="">Any</option></select>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="field">
+            <label for="classification">Facility level</label>
+            <select id="classification"><option value="">Any level</option></select>
+          </div>
+          <div class="field">
+            <label for="type">Ownership</label>
+            <select id="type">
+              <option value="">Government or private</option>
+              <option value="government">Government</option>
+              <option value="private">Private</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="checks">
+          <label><input type="checkbox" id="is24"> Open 24 hours</label>
+          <label><input type="checkbox" id="hasamb"> Has an ambulance</label>
+        </div>
+      </div>
+    </details>
+  </form>
+
+  <div class="results-head">
+    <h2 id="results-title">Facilities</h2>
+    <span class="count" id="results-count"></span>
+  </div>
+  <div id="results" aria-live="polite"></div>
+  <div class="pager" id="pager"></div>
+
+  <footer class="site">
+    <p>MediFinder Ghana · Phase 1 · Implements PRD v1.1. In a real emergency call 112.</p>
+  </footer>
+</main>
+
+<script src="js/api.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/home.js"></script>
+</body>
+</html>

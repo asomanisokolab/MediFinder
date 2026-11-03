@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+*.db
+.env
+.env.*
+!.env.example
+.venv/
+venv/
+backend/.claude/
+.qodo/

@@ -1,0 +1,186 @@
+"""Pydantic request/response models. All API output is JSON (PRD 6.3)."""
+from datetime import datetime
+from typing import Generic, Literal, TypeVar
+
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
+
+T = TypeVar("T")
+
+
+# --------------------------------------------------------------------------
+# shared
+# --------------------------------------------------------------------------
+class Page(BaseModel, Generic[T]):
+    """PRD 6.3: all search endpoints support pagination."""
+
+    items: list[T]
+    total: int
+    page: int
+    page_size: int
+    pages: int
+    data_verified: bool = Field(
+        description="False while the dataset is unverified seed data (PRD 7.1)."
+    )
+
+
+class ServiceOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    service_name: str
+    is_active: bool
+
+
+class BedsOut(BaseModel):
+    total_beds: int | None = None
+    available_beds: int | None = None
+    updated_at: datetime | None = None
+    is_stale: bool = True
+    # PRD 7.3: shows "Not updated" once the 24h window lapses.
+    display: str
+
+
+class AmbulanceStatusOut(BaseModel):
+    total_units: int | None = None
+    units_available: int | None = None
+    updated_at: datetime | None = None
+    is_stale: bool = True
+    display: str
+
+
+class CoverageOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    region: str
+    district: str
+
+
+# --------------------------------------------------------------------------
+# facilities
+# --------------------------------------------------------------------------
+class FacilitySummary(BaseModel):
+    id: int
+    name: str
+    type: str
+    classification: str
+    region: str
+    city: str
+    town: str
+    lat: float
+    lng: float
+    phone: str
+    is_24_hour: bool
+    has_ambulance: bool
+    verified: bool
+    last_verified: datetime | None = None
+    distance_km: float | None = None
+    services: list[str] = []
+    beds: BedsOut | None = None
+
+
+class FacilityDetail(FacilitySummary):
+    address: str
+    hours: str
+    ambulance_phone: str
+    ambulance_provider_id: int | None = None
+    insurance: list[str] = []
+    service_detail: list[ServiceOut] = []
+    last_updated: datetime
+
+
+# --------------------------------------------------------------------------
+# ambulance
+# --------------------------------------------------------------------------
+class AmbulanceSummary(BaseModel):
+    id: int
+    name: str
+    operator_type: str
+    service_level: str
+    region: str
+    district: str
+    lat: float
+    lng: float
+    phone: str
+    alt_phone: str
+    is_24_hour: bool
+    cost_band: str
+    verified: bool
+    phone_verified_at: datetime | None = None
+    distance_km: float | None = None
+    covers_user_area: bool | None = None
+    status: AmbulanceStatusOut | None = None
+
+
+class AmbulanceDetail(AmbulanceSummary):
+    base_address: str
+    hours: str
+    coverage: list[CoverageOut] = []
+    last_updated: datetime
+
+
+# --------------------------------------------------------------------------
+# emergency (PRD 5.1.4)
+# --------------------------------------------------------------------------
+class EmergencyOut(BaseModel):
+    emergency_number: str
+    notice: str
+    data_verified: bool
+    facilities: list[FacilitySummary]
+    ambulance_providers: list[AmbulanceSummary]
+    located_region: str | None = None
+
+
+# --------------------------------------------------------------------------
+# reference
+# --------------------------------------------------------------------------
+class ClassificationOut(BaseModel):
+    level: str
+    name: str
+    description: str
+
+
+# --------------------------------------------------------------------------
+# admin
+# --------------------------------------------------------------------------
+class LoginIn(BaseModel):
+    # Deliberately not EmailStr: login must accept whatever address the
+    # account was created with. Strict deliverability checks belong at
+    # registration, not at the door.
+    email: str = Field(min_length=3, max_length=160, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+    password: str = Field(min_length=8, max_length=72)
+
+
+class TokenOut(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    expires_in: int
+    scope: Literal["facility", "provider"]
+    facility_id: int | None = None
+    provider_id: int | None = None
+
+
+class AdminMeOut(BaseModel):
+    id: int
+    email: str
+    full_name: str
+    scope: Literal["facility", "provider"]
+    facility_id: int | None = None
+    provider_id: int | None = None
+    facility_name: str | None = None
+    provider_name: str | None = None
+
+
+class BedUpdateIn(BaseModel):
+    total_beds: int = Field(ge=0, le=10000)
+    available_beds: int = Field(ge=0, le=10000)
+
+
+class ServiceStatusIn(BaseModel):
+    service_name: str
+    is_active: bool
+
+
+class ServicesUpdateIn(BaseModel):
+    services: list[ServiceStatusIn]
+
+
+class FleetUpdateIn(BaseModel):
+    total_units: int = Field(ge=0, le=1000)
+    units_available: int = Field(ge=0, le=1000)

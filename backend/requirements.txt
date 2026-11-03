@@ -1,0 +1,13 @@
+fastapi>=0.115
+uvicorn[standard]>=0.30
+SQLAlchemy>=2.0
+pydantic>=2.7
+pydantic[email]>=2.7
+PyJWT>=2.8
+bcrypt>=3.2
+
+# Swap to PostgreSQL + PostGIS (PRD 6.1): install psycopg, set
+# MEDIFINDER_DATABASE_URL=postgresql+psycopg://user:pw@host/medifinder
+# then run `python -m app.seed --reset`. geo.py switches to ST_DistanceSphere
+# automatically once the dialect reports postgresql.
+# psycopg[binary]>=3.1

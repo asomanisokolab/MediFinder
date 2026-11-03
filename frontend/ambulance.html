@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ambulance providers — MediFinder Ghana</title>
+<meta name="description" content="Find ambulance providers covering your area in Ghana: National Ambulance Service stations, private operators and hospital units.">
+<meta name="theme-color" content="#1a56db">
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="site">
+  <div class="wrap">
+    <a class="brand" href="index.html">MediFinder Ghana</a>
+    <nav aria-label="Main">
+      <a href="index.html">Find care</a>
+      <a href="ambulance.html">Ambulance</a>
+      <a href="admin.html">Admin</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main" class="wrap">
+  <div id="detail" hidden></div>
+
+  <div id="directory">
+    <h1>Ambulance providers</h1>
+    <p class="lede">Providers are matched to the area they cover, not just the nearest base station.</p>
+
+    <div id="banner"></div>
+
+    <p class="disclaimer">
+      MediFinder shows you providers and places the call. It does not dispatch an ambulance.
+      If no one answers, call 112.
+    </p>
+
+    <div class="actions" style="margin-bottom:12px">
+      <a class="btn" href="tel:112">Call 112</a>
+      <button type="button" class="secondary" id="locate-btn">Find providers for my area</button>
+    </div>
+    <p class="notice" id="locate-status" role="status"></p>
+
+    <form id="filter-form">
+      <div class="row">
+        <div class="field">
+          <label for="region">Region</label>
+          <select id="region"><option value="">All regions</option></select>
+        </div>
+        <div class="field">
+          <label for="level">Service level</label>
+          <select id="level">
+            <option value="">Any level</option>
+            <option value="ALS">ALS — Advanced Life Support</option>
+            <option value="BLS">BLS — Basic Life Support</option>
+          </select>
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="operator">Operator</label>
+          <select id="operator">
+            <option value="">Any operator</option>
+            <option value="government">Government (National Ambulance Service)</option>
+            <option value="private">Private</option>
+            <option value="facility_attached">Hospital unit</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="q">Search by name or town</label>
+          <input type="text" id="q" autocomplete="off" placeholder="e.g. Kumasi">
+        </div>
+      </div>
+    </form>
+
+    <div class="results-head">
+      <h2 id="results-title">Providers</h2>
+      <span class="count" id="results-count"></span>
+    </div>
+    <div id="results" aria-live="polite"></div>
+    <div class="pager" id="pager"></div>
+  </div>
+
+  <footer class="site">
+    <p>MediFinder Ghana · Phase 1 · In a real emergency call 112.</p>
+  </footer>
+</main>
+
+<script src="js/api.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/ambulance.js"></script>
+</body>
+</html>
