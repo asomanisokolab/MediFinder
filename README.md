@@ -52,11 +52,11 @@ with placeholder contents, not something anyone should rely on in an emergency.
 
 ## Mobile app
 
-`mobile/` holds the Android app (iOS ready to add). It contains only the
-public pages: Find care, Ambulance and Contact us. There are no admin or
-superadmin pages. GitHub Actions builds an installable APK on every push; see
-[mobile/README.md](mobile/README.md) for downloading it and publishing on
-Google Play.
+`mobile/` holds the React Native app (Expo SDK 58, Expo Router, TypeScript).
+It contains only the public sections: Find care with Emergency mode,
+Ambulance and Contact us. There are no admin or superadmin screens. GitHub
+Actions builds an installable APK on every push, or you can use
+`eas build -p android --profile preview`. See [mobile/README.md](mobile/README.md).
 
 ## Run it
 
@@ -517,7 +517,7 @@ data/
 scripts/
   build_directory.py    builds the CSV from downloaded open data
   overpass/             the OpenStreetMap queries
-mobile/                 Android app of the public pages (Capacitor)
+mobile/                 React Native (Expo) app of the public sections
 docs/
   FindCare-Ghana-How-Access-Works.pdf  plain-language guide for staff
   build_access_guide.py                regenerates the PDF (needs reportlab)

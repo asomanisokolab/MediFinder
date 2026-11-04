@@ -1,128 +1,116 @@
 # FindCare Ghana mobile app
 
-An Android app (iOS ready to add) containing **only the public directory**:
+A React Native app built with **Expo SDK 58**, **Expo Router** and
+TypeScript. It contains only the public directory:
 
-- **Find care:** search, filters and Emergency mode
-- **Ambulance:** providers covering your area
-- **Contact us:** request a listing
-
-These also link to facility profiles, the thank-you page, and the privacy
-policy and terms. There are **no admin or superadmin pages** in the app, and
-no links to them. Organizations manage their listing on the website at
-`findcareghana.com/admin`.
-
-The app reuses the website's own pages and scripts from `../frontend`, so a
-change to the website flows into the next app build. It shows live data by
-calling the API at `https://findcareghana.com`.
-
-## How it is built
-
-| Piece | What it does |
+| Tab / screen | What it does |
 | --- | --- |
-| [Capacitor](https://capacitorjs.com) 8 | Native Android shell around the pages |
-| `scripts/build-www.mjs` | Copies the public pages into `www/`. It removes admin links, website-only analytics and the cookie banner, and points the pages at the live API. The build fails if an admin link would slip through |
-| `app.css` | App-only styles: room for the status bar, and the Emergency / Call 112 bar on every screen size |
-| `scripts/make_icons.py` | Draws the launcher icons and splash screens |
-| `android/` | The Android Studio project. Location permission is used for "Use my location" and Emergency mode |
-| `../.github/workflows/android-app.yml` | Builds the app on GitHub |
+| **Find care** | Search by name, community, town or district; category chips; Region → District → City pickers; 24-hour, ambulance, ownership, insurance and service filters; "Use my location" sorts by distance; results load as you scroll |
+| **Emergency** | Opened from the red button. Uses GPS (or asks for a region), then shows **Call 112**, the nearest open facilities and the ambulance providers covering you |
+| **Ambulance** | Providers covering your location, or browse by region and name |
+| **Contact us** | Request a listing; errors shown under each field; opens a thank-you screen |
+| Facility / provider profile | Call, directions, beds or fleet, services, insurance, coverage, district and community, and the source credit |
 
-## Getting the app (no Android Studio needed)
+There is **no admin or superadmin** anywhere in the app. Organizations
+manage their listing on the website.
 
-Every push to `main` that changes `mobile/` or `frontend/` builds the app on
-GitHub:
+A red **112** button is in every header. The app reads live data from
+`https://findcareghana.com/api/v1` (set in `app.json` → `expo.extra.apiOrigin`).
 
-1. Open the repository on GitHub, go to **Actions** and choose **Android app**.
-2. Open the latest green run and scroll to **Artifacts**.
-3. Download **findcare-ghana-debug-apk** and unzip it to get `app-debug.apk`.
-4. Copy it to an Android phone and open it. Allow "install unknown apps" for
-   the file manager or browser when asked.
+## Get an APK to test
 
-You can also start a build without a code change: **Actions → Android app →
-Run workflow**.
+### Option A: GitHub (free, no Expo account)
 
-The debug APK is for testing and sharing directly. The Play Store needs the
-signed bundle described below.
+Every push to `main` that changes `mobile/` builds an APK:
 
-## Publishing on Google Play
+1. On GitHub open **Actions → Android APK** and the latest green run.
+2. Under **Artifacts** download **findcare-ghana-apk** and unzip it.
+3. Copy `app-release.apk` to an Android phone and open it. Allow "install
+   unknown apps" when asked.
 
-1. **Create a signing key once**, on any computer with Java installed. Keep
-   the file and passwords safe: every future update must be signed with this
-   same key.
+To build without a code change: **Actions → Android APK → Run workflow**.
 
-   ```bash
-   keytool -genkeypair -v -keystore findcare-release.jks -alias findcare \
-     -keyalg RSA -keysize 2048 -validity 10000
-   ```
-
-2. **Add four repository secrets** under GitHub → **Settings → Secrets and
-   variables → Actions**:
-
-   | Secret | Value |
-   | --- | --- |
-   | `ANDROID_KEYSTORE_BASE64` | The key file as text: `base64 -w0 findcare-release.jks` (on Windows PowerShell: `[Convert]::ToBase64String([IO.File]::ReadAllBytes("findcare-release.jks"))`) |
-   | `ANDROID_KEYSTORE_PASSWORD` | The keystore password |
-   | `ANDROID_KEY_ALIAS` | `findcare` |
-   | `ANDROID_KEY_PASSWORD` | The key password |
-
-3. Run the workflow again. It now also produces
-   **findcare-ghana-play-store-bundle** (`app-release.aab`).
-4. In the [Google Play Console](https://play.google.com/console) (one-time
-   US$25 registration), create the app *FindCare Ghana* and upload the `.aab`
-   under **Testing → Internal testing** first, then **Production**.
-   - **Privacy policy URL:** `https://findcareghana.com/privacy.html`
-   - **Data safety:** the app uses approximate and precise location only to
-     find nearby care, without storing it. It also sends the contact form's
-     details, which you enter yourself. No ads, no analytics in the app.
-   - **Category:** Medical. Content rating questionnaire: no objectionable
-     content.
-
-Each GitHub build number becomes the app's `versionCode`, so every upload is
-newer than the last. Change `versionName` in `android/app/build.gradle` for
-user-visible versions.
-
-## iPhone (iOS)
-
-iOS apps can only be built on a Mac with Xcode and an Apple Developer account
-(US$99 per year). On the Mac:
+### Option B: EAS Build (your Expo account)
 
 ```bash
 cd mobile
-npm install
-npm install @capacitor/ios@8.6.0
-npm run build
-npx cap add ios
-npx cap open ios
+npm ci
+npx eas-cli@latest login
+npx eas-cli@latest build -p android --profile preview
 ```
 
-In Xcode, add a "Location When In Use" description such as *"FindCare uses
-your location to find the nearest hospitals, clinics and ambulances."*,
-then archive and upload to App Store Connect.
+The `preview` profile in `eas.json` produces an APK. EAS prints a link and QR
+code to install it. The first run asks to create the EAS project and an
+Android keystore; accept both.
 
-## Working on the app locally
-
-You need Node 22+, plus Android Studio with JDK 21 to run it on an emulator:
+## Develop
 
 ```bash
 cd mobile
-npm install
-npm run sync      # build www/ from ../frontend and copy it into android/
-npm run open      # open in Android Studio, then press Run
+npm ci
+npx expo start            # scan the QR code with Expo Go, or press a for an emulator
 ```
 
-To test against a local server instead of the live site:
+Everything the app uses is in Expo Go (location, linking, router), so no
+development build is needed for day-to-day work.
+
+To use a local backend instead of the live site, create `mobile/.env.local`:
+
+```
+EXPO_PUBLIC_API_ORIGIN=http://192.168.1.20:8000
+```
+
+Use your computer's network address. A phone can't reach `localhost` on your
+computer. Restart `npx expo start` after changing it.
+
+Before pushing:
 
 ```bash
-FINDCARE_API_ORIGIN=http://10.0.2.2:8000 npm run sync   # emulator's address for your PC
+npx tsc --noEmit
+npx expo lint
+npx expo-doctor
 ```
 
-After `npx cap add android` regenerates the project, run
-`python scripts/make_icons.py` again and restore the location permissions in
-`android/app/src/main/AndroidManifest.xml`.
+## Layout
+
+```
+src/
+  app/                    Expo Router screens
+    _layout.tsx           root stack, 112 header button, location provider
+    (tabs)/_layout.tsx    Find care / Ambulance / Contact us tabs
+    (tabs)/index.tsx      Find care
+    (tabs)/ambulance.tsx  Ambulance
+    (tabs)/contact.tsx    Contact us
+    facility/[id].tsx     facility profile
+    provider/[id].tsx     ambulance provider profile
+    emergency.tsx         emergency mode
+    thank-you.tsx         after a contact request
+  components/             buttons, chips, cards, picker, header
+  lib/
+    api.ts                typed client for the public API
+    location.tsx          shared GPS position (expo-location)
+    useQuery.ts           data loading keyed by request
+    format.ts, theme.ts   labels, formatting, brand colours
+assets/                   icon, adaptive icon, splash (scripts/make_assets.py)
+```
+
+`android/` and `ios/` are generated by `npx expo prebuild` and are not
+committed. Change native settings in `app.json`.
+
+## Publishing
+
+- **Google Play:** `npx eas-cli@latest build -p android --profile production`
+  builds a signed `.aab`. Upload it in the Play Console, or use
+  `npx eas-cli@latest submit -p android`. Use
+  `https://findcareghana.com/privacy.html` as the privacy policy URL. Location
+  is used only to find nearby care and is not stored.
+- **App Store:** `npx eas-cli@latest build -p ios` (needs an Apple Developer
+  account). EAS builds in the cloud, so no Mac is needed.
+- Increase `version` (and `android.versionCode`) in `app.json` for each store
+  release.
 
 ## Server requirements
 
-- The app needs the live server to be on the latest version, so the
-  district search works. Deploy the backend before releasing a new app.
-- The API allows requests from any origin (`MEDIFINDER_CORS_ORIGINS=*`, the
-  default). If you ever restrict it, include `https://localhost` (Android)
-  and `capacitor://localhost` (iOS).
+The live server must be on the latest version, so that the district search
+works. The API allows requests from any origin by default; native apps don't
+send an `Origin` header, so CORS settings don't affect them.
