@@ -14,6 +14,7 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import inch
 from reportlab.platypus import (
     Flowable,
+    KeepTogether,
     PageBreak,
     Paragraph,
     Preformatted,
@@ -41,9 +42,9 @@ title = ParagraphStyle("title", parent=body, fontName="Helvetica-Bold", fontSize
                        leading=32, textColor=TEAL, alignment=TA_CENTER, spaceAfter=4)
 subtitle = ParagraphStyle("subtitle", parent=body, fontSize=11, leading=15,
                           textColor=SOFT, alignment=TA_CENTER, spaceAfter=14)
-h1 = ParagraphStyle("h1", parent=body, fontName="Helvetica-Bold", fontSize=17,
+h1 = ParagraphStyle("h1", parent=body, keepWithNext=1, fontName="Helvetica-Bold", fontSize=17,
                     leading=22, textColor=TEAL, spaceBefore=12, spaceAfter=6)
-h2 = ParagraphStyle("h2", parent=body, fontName="Helvetica-Bold", fontSize=11.5,
+h2 = ParagraphStyle("h2", parent=body, keepWithNext=1, fontName="Helvetica-Bold", fontSize=11.5,
                     leading=15, spaceBefore=8, spaceAfter=3)
 code = ParagraphStyle("code", parent=body, fontName="Courier", fontSize=8.5, leading=11,
                       backColor=CODE_BG, borderPadding=6, leftIndent=6, rightIndent=6,
@@ -105,7 +106,8 @@ def steps(*items):
 
 
 def commands(text):
-    return Preformatted(text.strip("\n"), code)
+    # Kept whole: a command split across two pages is easy to copy wrongly.
+    return KeepTogether([Preformatted(text.strip("\n"), code)])
 
 
 def grid(rows, widths, header=False):
@@ -131,7 +133,8 @@ def story():
         Spacer(1, 18),
         p("FindCare Ghana", title),
         p("A plain-language guide to the public site, organization administrators, "
-          "and the system-wide superadmin", subtitle),
+          "the system-wide superadmin, the facility directory, and analytics and "
+          "Google setup", subtitle),
         p("Who uses FindCare?", h1),
         grid([
             ("Public visitors",
@@ -149,10 +152,11 @@ def story():
         p("<b>Contact FindCare Ghana:</b> info@findcareghana.com, and @findcareGh on "
           "Instagram, X and Facebook. These appear in the footer of every public page "
           "and on the Contact us page."),
-        p("<b>Important:</b> included facility and ambulance entries are demonstration "
-          "data. Phone numbers are placeholders and may not connect. Do not rely on them "
-          "in an emergency. The website displays a warning until real information is "
-          "verified."),
+        p("<b>Important:</b> the directory has not been verified yet. About 2,400 "
+          "facilities come from OpenStreetMap (section 5) and 59 were entered by hand. "
+          "Some phone numbers are placeholders and others may be out of date. Do not rely "
+          "on them in an emergency. The website displays a warning until the "
+          "information is verified."),
         p("This guide explains access and account responsibilities. It is not a medical "
           "or emergency-response guide."),
         PageBreak(),
@@ -305,7 +309,11 @@ def story():
                  "sudo docker compose up -d --build app\n"
                  "sudo docker compose ps\n"
                  "sudo docker compose logs --tail=50 app\n"
-                 "curl http://127.0.0.1:8000/api/v1/health"),
+                 "curl http://127.0.0.1:8000/api/v1/health\n"
+                 "sudo docker compose exec app python -m app.directory_import"),
+        p("The last command loads or refreshes the facility directory (section 5). It "
+          "is safe to run after every update. After any change to the website, press "
+          "<b>Ctrl+F5</b> in the browser so it loads the new design."),
         p("On startup the application adds any new tables and columns by itself. "
           "<b>Do not reset or reseed the production database.</b> Rebuilding only the "
           "app keeps the PostgreSQL data volume and existing records. Back up the "
@@ -315,6 +323,164 @@ def story():
         p("Give superadmin access only to a person trusted to manage all FindCare "
           "accounts and directory information. Replace demo accounts and placeholder "
           "data before real use."),
+
+        p("5. The facility directory", h1),
+        p("FindCare ships with about <b>2,400 health facilities from across Ghana</b>, "
+          "taken from OpenStreetMap, the free map of the world that anyone can edit. "
+          "Google Maps was not copied, because its terms forbid it."),
+        grid([
+            ("What is included",
+             "About 1,050 pharmacies and chemical sellers, about 950 clinics (including "
+             "CHPS compounds and health centres), about 365 hospitals, a few funeral "
+             "homes (hearse services) and care homes."),
+            ("Where each one is",
+             "Exact GPS position, region, district (metropolitan, municipal or district "
+             "assembly), city or town, and community. All 16 regions are covered. The "
+             "district comes from the official boundary the point falls inside."),
+            ("Contact details",
+             "Phone numbers, opening hours and websites appear only where map volunteers "
+             "recorded them, about 1 record in 8. None has been called."),
+            ("Services",
+             "Only what the place is known to be: pharmacy, dentist, laboratory, eye "
+             "care, outpatient, or antenatal care and immunisation for CHPS compounds. "
+             "Nothing is guessed."),
+            ("Coverage gaps",
+             "Busy cities are well mapped. Rural areas, and the North East and Savannah "
+             "regions, have far fewer entries. Caregivers and hearse services barely "
+             "exist in open data, so Contact us is the way to list them."),
+        ], [1.6 * inch, 5.4 * inch]),
+        Spacer(1, 8),
+        p("Loading it on the Droplet", h2),
+        commands("cd /opt/MediFinder\n"
+                 "sudo docker compose exec app python -m app.directory_import"),
+        p("It prints how many places were added, merged, refreshed, left alone or "
+          "skipped. It <b>never deletes anything</b> and is safe to run again."),
+        p("Rules the import follows", h2),
+        *steps(
+            "A listing that an organization manages (it has a login) or that has been "
+            "verified is never changed. It belongs to the organization.",
+            "When an OpenStreetMap place matches a hand-entered listing (same name, within "
+            "1 km), the two become one record. It takes the map's location, district, "
+            "community and any real phone number, and keeps the hand-entered "
+            "classification, services, insurance and beds.",
+            "Every imported listing starts as <i>unverified</i>. Its page says the data "
+            "comes from OpenStreetMap and has not been confirmed by the facility.",
+        ),
+        p("Credit to OpenStreetMap", h2),
+        p("The OpenStreetMap licence (ODbL) requires credit wherever the data is shown. "
+          "The site footer and every imported facility page say <i>(c) OpenStreetMap "
+          "contributors</i>. Keep these credits."),
+        p("Making the data reliable", h2),
+        p("Before relying on the directory, call facilities to confirm their phone "
+          "numbers and correct them in the superadmin dashboard. Facilities that want "
+          "to manage their own listing use <b>Contact us</b>, as in section 1."),
+
+        p("6. Website pages", h1),
+        p("Every FindCare page follows a standard launch checklist:"),
+        grid([
+            ("Page not found", "A branded 404 page with links back to search, ambulances "
+             "and the 112 number, instead of a blank error."),
+            ("Emergency first", "The red <b>Emergency - find help now</b> button is at "
+             "the top of the home page. On phones a bar with <b>Emergency help</b> and "
+             "<b>Call 112</b> stays at the bottom of the screen."),
+            ("Titles and previews", "Every page has its own title and description. "
+             "Links shared on WhatsApp, Facebook or X show a FindCare preview image."),
+            ("Icons", "Browser-tab icon, phone home-screen icons and app icons."),
+            ("Forms", "The contact form explains each mistake under the field and shows "
+             "<i>Sending...</i> while it works. Afterwards it opens a thank-you page "
+             "explaining the next steps."),
+            ("Legal", "Privacy policy and Terms of use, linked in every footer. They "
+             "follow Ghana's Data Protection Act, 2012 (Act 843). Have a lawyer review "
+             "them."),
+            ("Search engines", "robots.txt and sitemap.xml are made automatically "
+             "(section 8)."),
+            ("Cookies and statistics", "A cookie banner and Google Analytics, only "
+             "after setup (section 7)."),
+        ], [1.6 * inch, 5.4 * inch]),
+
+        p("7. Setting up Google Analytics", h1),
+        p("Google Analytics shows how many people visit FindCare, from where and which "
+          "pages they use. It stays off until you add your ID."),
+        *steps(
+            "Go to <b>analytics.google.com</b> and sign in with the Google account that "
+            "should own the statistics.",
+            "Click <b>Admin</b> (gear icon), then <b>Create</b> and <b>Property</b>. Name "
+            "it <i>FindCare Ghana</i>, choose time zone <i>Ghana</i> and currency "
+            "<i>Ghanaian Cedi</i>, and continue through the questions.",
+            "When asked for a data stream choose <b>Web</b>, enter "
+            "<b>findcareghana.com</b>, and click <b>Create stream</b>.",
+            "Copy the <b>Measurement ID</b> at the top right. It looks like "
+            "<font name='Courier'>G-ABC123XYZ</font>.",
+            "On the Droplet, add it to the settings file and restart the app:",
+        ),
+        commands("cd /opt/MediFinder\n"
+                 "nano .env\n"
+                 "#   add this line, with your own ID:\n"
+                 "#   MEDIFINDER_GA_MEASUREMENT_ID=G-ABC123XYZ\n"
+                 "#   save with Ctrl+O, Enter, then exit with Ctrl+X\n"
+                 "sudo docker compose up -d app\n"
+                 "curl -s https://findcareghana.com/site-config.js"),
+        p("The last command should print your ID. Then open the site in a private "
+          "browser window. The cookie banner appears; press <b>Accept</b>. Within a "
+          "minute or two your visit shows in Google Analytics under <b>Reports</b> then "
+          "<b>Realtime</b>."),
+        p("How the cookie banner works", h2),
+        *steps(
+            "Statistics are collected <b>only after a visitor presses Accept</b>. If "
+            "they press Decline, nothing is sent to Google.",
+            "Visitors can change their mind at any time with <b>Cookie settings</b> at "
+            "the bottom of every page.",
+            "To switch analytics off, delete the ID from .env and run "
+            "<font name='Courier'>sudo docker compose up -d app</font> again. The banner "
+            "disappears too.",
+        ),
+
+        p("8. Getting found on Google (Search Console)", h1),
+        p("Google Search Console tells Google about every FindCare page and shows "
+          "which searches lead people to the site."),
+        p("Step 1: prove you own the domain", h2),
+        *steps(
+            "Go to <b>search.google.com/search-console</b> and click <b>Add "
+            "property</b>.",
+            "Choose <b>Domain</b> (the left box), type <b>findcareghana.com</b>, and "
+            "click <b>Continue</b>.",
+            "Google shows a TXT record starting with "
+            "<font name='Courier'>google-site-verification=</font>. Copy it.",
+            "Sign in to the company that manages your domain's DNS (where the A record "
+            "for the Droplet was set). Add a new <b>TXT</b> record with name/host "
+            "<b>@</b> and the copied value, then save.",
+            "Back in Search Console click <b>Verify</b>. DNS can take a few minutes to "
+            "a few hours; if it fails, wait and click Verify again.",
+        ),
+        p("If you cannot change the DNS, choose <b>URL prefix</b> instead and the "
+          "<b>HTML file</b> method. Put the file name Google gives you (for example "
+          "<font name='Courier'>google1234abcd.html</font>) in .env as "
+          "<font name='Courier'>MEDIFINDER_GOOGLE_VERIFICATION_FILE=google1234abcd.html"
+          "</font>, run <font name='Courier'>sudo docker compose up -d app</font>, then "
+          "click Verify."),
+        p("Step 2: send Google the list of pages", h2),
+        *steps(
+            "In the left menu open <b>Sitemaps</b>, type <b>sitemap.xml</b> and click "
+            "<b>Submit</b>. The status should become <i>Success</i>.",
+            "Open <b>URL inspection</b>, paste <b>https://findcareghana.com/</b> and "
+            "click <b>Request indexing</b>.",
+            "Over the next days, check <b>Pages</b> (what Google has added) and "
+            "<b>Performance</b> (searches that showed FindCare).",
+        ),
+        p("What FindCare does automatically", h2),
+        grid([
+            ("/robots.txt", "Tells search engines they may read the public site, and "
+             "keeps the sign-in pages and the API out of search."),
+            ("/sitemap.xml", "Lists the public pages and every facility and ambulance "
+             "provider page. New listings are added automatically, so you only submit "
+             "it once."),
+            ("Page details", "Each page tells Google its main address and title, and "
+             "the home page describes FindCare Ghana as an organization with its "
+             "social media accounts."),
+        ], [1.6 * inch, 5.4 * inch]),
+        Spacer(1, 8),
+        p("Search results take days to weeks to appear, and new sites usually start "
+          "low. Sharing the site and its facility pages on @findcareGh helps."),
     ]
     return s
 
