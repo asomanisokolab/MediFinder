@@ -262,6 +262,11 @@ dom['search-form'].addEventListener('submit', (event) => {
   search();
 });
 dom['emergency-btn'].addEventListener('click', emergency);
+// The sticky phone bar links here with ?emergency=1; on this page, skip the reload.
+document.getElementById('mobile-emergency').addEventListener('click', (event) => {
+  event.preventDefault();
+  emergency();
+});
 dom['locate-btn'].addEventListener('click', locate);
 dom.region.addEventListener('change', loadLocalities);
 ['service-other', 'insurance', 'classification', 'type'].forEach((id) =>
@@ -294,4 +299,6 @@ dom['service-checks'].addEventListener('change', () => {
     dom['locate-status'].textContent = 'Using your saved location for this visit.';
   }
   search();
+  // Opened from the sticky emergency bar or the app shortcut.
+  if (qs('emergency') === '1') emergency();
 })();

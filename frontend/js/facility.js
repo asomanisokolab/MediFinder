@@ -156,9 +156,28 @@ function render(facility) {
   );
 }
 
+/* Page description and canonical link for this facility, for search engines
+   and link previews. */
+function describePage(facility) {
+  const kind = CATEGORY_LABEL[facility.category] || 'Health facility';
+  const place = [facility.city || facility.town, facility.region].filter(Boolean).join(', ');
+  const description =
+    `${facility.name}: ${kind.toLowerCase()} in ${place}. ` +
+    'Phone number, services, opening hours and directions on FindCare Ghana.';
+  const url = `https://findcareghana.com/facility.html?id=${encodeURIComponent(facility.id)}`;
+  document.querySelector('meta[name="description"]').setAttribute('content', description);
+  document.querySelector('meta[property="og:title"]').setAttribute('content', document.title);
+  document.querySelector('meta[property="og:description"]').setAttribute('content', description);
+  document.head.appendChild(el('link', { rel: 'canonical', href: url }));
+}
+
 (async function init() {
   renderDataBanner('banner');
   const id = qs('id');
+  if (!id) {
+    // Bare facility.html is not a page of its own; keep it out of search.
+    document.head.appendChild(el('meta', { name: 'robots', content: 'noindex' }));
+  }
   if (!id) {
     showError(mount, 'No facility selected.');
     return;
@@ -168,6 +187,7 @@ function render(facility) {
   try {
     const facility = await api(`/facilities/${encodeURIComponent(id)}`, coords);
     document.title = `${facility.name} — FindCare Ghana`;
+    describePage(facility);
     render(facility);
   } catch (err) {
     showError(mount, err.message);

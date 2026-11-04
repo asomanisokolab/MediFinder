@@ -6,8 +6,54 @@
 <title>FindCare Ghana — Find medical facilities and ambulances</title>
 <meta name="description" content="Find hospitals, clinics, dental care and ambulance providers across all 16 regions of Ghana. Search by location, service and insurance.">
 <meta name="theme-color" content="#0b3b36">
+<link rel="icon" href="/favicon.ico" sizes="any">
 <link rel="icon" type="image/svg+xml" href="/images/findcareghana-icon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="/images/findcareghana-icon-32.png">
 <link rel="apple-touch-icon" href="/images/findcareghana-icon-180.png">
+<link rel="canonical" href="https://findcareghana.com/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="FindCare Ghana">
+<meta property="og:locale" content="en_GH">
+<meta property="og:title" content="FindCare Ghana — Find medical facilities and ambulances">
+<meta property="og:description" content="Find hospitals, clinics, dental care and ambulance providers across all 16 regions of Ghana. Search by location, service and insurance.">
+<meta property="og:url" content="https://findcareghana.com/">
+<meta property="og:image" content="https://findcareghana.com/images/og-image.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="FindCare Ghana: find hospitals, clinics, pharmacies and ambulances across Ghana">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@findcareGh">
+<meta name="twitter:title" content="FindCare Ghana — Find medical facilities and ambulances">
+<meta name="twitter:description" content="Find hospitals, clinics, dental care and ambulance providers across all 16 regions of Ghana. Search by location, service and insurance.">
+<meta name="twitter:image" content="https://findcareghana.com/images/og-image.jpg">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": "https://findcareghana.com/#organization",
+      "name": "FindCare Ghana",
+      "url": "https://findcareghana.com/",
+      "logo": "https://findcareghana.com/images/findcareghana-icon-512.png",
+      "email": "info@findcareghana.com",
+      "sameAs": [
+        "https://www.instagram.com/findcaregh",
+        "https://x.com/findcaregh",
+        "https://www.facebook.com/findcaregh"
+      ]
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://findcareghana.com/#website",
+      "name": "FindCare Ghana",
+      "url": "https://findcareghana.com/",
+      "inLanguage": "en-GH",
+      "publisher": {"@id": "https://findcareghana.com/#organization"}
+    }
+  ]
+}
+</script>
 <link rel="manifest" href="manifest.json">
 <link rel="stylesheet" href="css/styles.css">
 </head>
@@ -141,6 +187,11 @@
 
 </main>
 
+<nav class="mobile-cta" aria-label="Emergency shortcuts">
+  <a class="btn danger" href="index.html?emergency=1" id="mobile-emergency"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 12h-4l-3 8L9 4l-3 8H2"/></svg>Emergency help</a>
+  <a class="btn call" href="tel:112"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg>Call 112</a>
+</nav>
+
 <footer class="site-footer">
   <div class="wrap footer-grid">
     <div class="footer-brand">
@@ -167,9 +218,12 @@
   </div>
   <div class="wrap footer-bottom">
     <p>&copy; FindCare Ghana. FindCare lists providers; it does not dispatch. In a real emergency call <a href="tel:112">112</a>.</p>
+    <nav class="footer-legal" aria-label="Legal"><a href="/privacy.html">Privacy policy</a><a href="/terms.html">Terms of use</a></nav>
   </div>
 </footer>
 
+<script src="/site-config.js"></script>
+<script src="js/site.js"></script>
 <script src="js/api.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/home.js"></script>

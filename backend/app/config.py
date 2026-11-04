@@ -37,6 +37,15 @@ class Settings:
     # Falls back to the URL of the incoming request.
     PUBLIC_URL: str = os.getenv("MEDIFINDER_PUBLIC_URL", "").rstrip("/")
 
+    # --- analytics and search engines ------------------------------------
+    # Google Analytics 4 measurement ID (G-XXXXXXXXXX). Empty means no
+    # analytics and no cookie banner. Analytics only loads after a visitor
+    # accepts cookies.
+    GA_MEASUREMENT_ID: str = os.getenv("MEDIFINDER_GA_MEASUREMENT_ID", "").strip()
+    # Search Console "HTML file" verification, e.g. google1234abcd.html.
+    # Not needed when the domain is verified by DNS.
+    GOOGLE_VERIFICATION_FILE: str = os.getenv("MEDIFINDER_GOOGLE_VERIFICATION_FILE", "").strip()
+
     # --- api ------------------------------------------------------------
     API_PREFIX: str = "/api/v1"
     CORS_ORIGINS: list = os.getenv("MEDIFINDER_CORS_ORIGINS", "*").split(",")

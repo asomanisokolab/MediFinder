@@ -779,6 +779,45 @@ def test_bad_input():
                      headers={"Authorization": "Bearer nonsense"}).status_code == 401)
 
 
+def test_launch_checklist_pages():
+    missing = client.get("/no-such-page")
+    check("unknown page returns 404", missing.status_code == 404)
+    check("unknown page shows the branded 404 page", b"We can't find that page" in missing.content)
+    check("unknown nested page shows the 404 page",
+          b"We can't find that page" in client.get("/a/b/c.html").content)
+    check("unknown API path stays JSON",
+          client.get(f"{API}/no-such-thing").json() == {"detail": "Not found"})
+
+    for page in ("/thank-you.html", "/privacy.html", "/terms.html", "/favicon.ico",
+                 "/images/og-image.jpg", "/images/findcareghana-icon-32.png"):
+        check(f"{page} is served", client.get(page).status_code == 200)
+
+    robots = client.get("/robots.txt")
+    check("robots.txt is served", robots.status_code == 200)
+    check("robots.txt blocks management pages",
+          "Disallow: /superadmin" in robots.text and "Disallow: /admin" in robots.text)
+    check("robots.txt points to the sitemap", "/sitemap.xml" in robots.text)
+
+    sitemap = client.get("/sitemap.xml")
+    check("sitemap.xml is XML", sitemap.headers["content-type"].startswith("application/xml"))
+    check("sitemap lists public pages",
+          "/privacy.html</loc>" in sitemap.text and "/ambulance.html</loc>" in sitemap.text)
+    check("sitemap lists facility profiles", "/facility.html?id=" in sitemap.text)
+    check("sitemap leaves out sign-in pages",
+          "/admin" not in sitemap.text and "/superadmin" not in sitemap.text)
+
+    config = client.get("/site-config.js")
+    check("site config script is served",
+          config.status_code == 200 and "window.SITE_CONFIG" in config.text)
+
+    home = client.get("/").text
+    check("home page has an Open Graph image", 'property="og:image"' in home)
+    check("home page has a canonical link", 'rel="canonical"' in home)
+    check("home page links to privacy and terms",
+          'href="/privacy.html"' in home and 'href="/terms.html"' in home)
+    check("home page has the sticky phone shortcuts", 'class="mobile-cta"' in home)
+
+
 def main() -> int:
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     for fn in tests:

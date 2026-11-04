@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from .config import FRONTEND_DIR, settings
 from .database import ensure_schema
 from .ratelimit import RateLimitMiddleware
-from .routers import admin, ambulance, contact, emergency, facilities, reference, superadmin
+from .routers import admin, ambulance, contact, emergency, facilities, reference, site, superadmin
 
 
 @asynccontextmanager
@@ -49,6 +49,7 @@ app.add_middleware(RateLimitMiddleware)
 for router in (facilities.router, ambulance.router, emergency.router,
                reference.router, contact.router, admin.router, superadmin.router):
     app.include_router(router, prefix=settings.API_PREFIX)
+app.include_router(site.router)
 
 
 @app.get("/admin", include_in_schema=False)
@@ -85,14 +86,21 @@ def health():
     }
 
 
+@app.api_route("/api/{path:path}", methods=["GET", "POST", "PUT", "DELETE"],
+               include_in_schema=False)
+def unknown_api_path(path: str):
+    # Without this, the static mount below would answer with the HTML 404 page.
+    return JSONResponse(status_code=404, content={"detail": "Not found"})
+
+
 @app.exception_handler(404)
 async def not_found(request, exc):
-    """API 404s stay JSON; anything else falls through to the SPA shell."""
+    """API 404s stay JSON; pages get the branded 404 page."""
     if request.url.path.startswith("/api"):
         return JSONResponse(status_code=404, content={"detail": "Not found"})
-    index = FRONTEND_DIR / "index.html"
-    if index.exists():
-        return FileResponse(index)
+    page = FRONTEND_DIR / "404.html"
+    if page.exists():
+        return FileResponse(page, status_code=404)
     return JSONResponse(status_code=404, content={"detail": "Not found"})
 
 
