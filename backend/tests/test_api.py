@@ -810,6 +810,18 @@ def test_open_data_directory():
     profile = client.get(f"{API}/facilities/{imported.id}").json()
     check("profile names its data source", profile["source"] == "osm")
 
+    # Komfo Anokye is both hand-entered and in OpenStreetMap: one record,
+    # with the source's location and the curated classification and beds.
+    komfo = client.get(f"{API}/facilities", params={"q": "Komfo Anokye", "page_size": 50}).json()
+    teaching = [f for f in komfo["items"] if "Teaching" in f["name"]]
+    check("seed and open-data twins are merged", len(teaching) == 1,
+          str([f["name"] for f in teaching]))
+    with SessionLocal() as db:
+        merged = db.get(Facility, teaching[0]["id"])
+        check("merged record is marked as merged", merged.source == "osm+seed", merged.source)
+        check("merged record keeps the curated classification", merged.classification == "Level A")
+        check("merged record gains a district", bool(merged.district))
+
     pharmacies = client.get(
         f"{API}/facilities", params={"category": "pharmacy", "page_size": 5}
     ).json()

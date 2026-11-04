@@ -160,8 +160,9 @@ function render(facility) {
         el('dt', { text: 'Record last updated' }),
         el('dd', { text: fmtWhen(facility.last_updated) }),
       ]),
-      SOURCE_CREDIT[facility.source]
-        ? el('p', { class: 'notice', html: SOURCE_CREDIT[facility.source] })
+      // "osm+seed": a hand-entered record merged with its OpenStreetMap twin.
+      SOURCE_CREDIT[facility.source.replace('+seed', '')]
+        ? el('p', { class: 'notice', html: SOURCE_CREDIT[facility.source.replace('+seed', '')] })
         : null,
     ])
   );
