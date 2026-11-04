@@ -1,4 +1,4 @@
-"""MediFinder Ghana API.
+"""FindCare Ghana API.
 
 FastAPI application wiring. Serves the API under /api/v1 and the static
 PWA frontend at /, so the MVP runs from a single process.
@@ -11,20 +11,20 @@ from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import FRONTEND_DIR, settings
-from .database import Base, engine
+from .database import ensure_schema
 from .ratelimit import RateLimitMiddleware
-from .routers import admin, ambulance, emergency, facilities, reference, superadmin
+from .routers import admin, ambulance, contact, emergency, facilities, reference, superadmin
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    Base.metadata.create_all(bind=engine)
+    ensure_schema()
     yield
 
 
 app = FastAPI(
     lifespan=lifespan,
-    title="MediFinder Ghana API",
+    title="FindCare Ghana API",
     version="1.1.0",
     description=(
         "Find medical facilities and ambulance providers across the 16 regions "
@@ -47,7 +47,7 @@ app.add_middleware(RateLimitMiddleware)
 
 
 for router in (facilities.router, ambulance.router, emergency.router,
-               reference.router, admin.router, superadmin.router):
+               reference.router, contact.router, admin.router, superadmin.router):
     app.include_router(router, prefix=settings.API_PREFIX)
 
 
@@ -57,8 +57,9 @@ def admin_login_page():
 
 
 @app.get("/admin/register", include_in_schema=False)
-def admin_registration_page():
-    return FileResponse(FRONTEND_DIR / "admin-register.html")
+def legacy_admin_registration_page():
+    # Self-registration was replaced by the contact form.
+    return RedirectResponse("/contact.html", status_code=308)
 
 
 @app.get("/superadmin", include_in_schema=False)

@@ -5,7 +5,7 @@ update fleet availability. One login model, scoped by the token.
 """
 import json
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -14,27 +14,27 @@ from ..database import get_db
 from ..models import (
     AmbulanceProvider,
     AmbulanceStatus,
-    Admin,
     AdminChangeLog,
-    AdminRegistrationRequest,
     BedAvailability,
     Facility,
     Service,
-    SuperAdmin,
     utcnow,
 )
 from ..presenters import beds_out, fleet_out
+from ..reference import in_ghana
 from ..schemas import (
     AdminMeOut,
-    AdminRegistrationIn,
     BedUpdateIn,
     FleetUpdateIn,
+    LocationIn,
     LoginIn,
+    PasswordChangeIn,
     ServicesUpdateIn,
     TokenOut,
 )
 from ..security import (
     create_access_token,
+    get_admin_with_temporary_password,
     get_current_admin,
     require_facility,
     require_provider,
@@ -61,60 +61,6 @@ def _record_change(
     )
 
 
-@router.post("/admin/register", status_code=status.HTTP_202_ACCEPTED)
-def request_registration(payload: AdminRegistrationIn, db: Session = Depends(get_db)):
-    """Create a pending admin request; it grants no access until approved."""
-    email = payload.email.strip().lower()
-    if (payload.scope == "facility") != (payload.facility_id is not None):
-        raise HTTPException(status_code=422, detail="Choose exactly one matching facility.")
-    if (payload.scope == "provider") != (payload.provider_id is not None):
-        raise HTTPException(status_code=422, detail="Choose exactly one matching provider.")
-    if db.scalar(
-        select(Admin).where(func.lower(Admin.email) == email)
-    ) or db.scalar(
-        select(SuperAdmin).where(func.lower(SuperAdmin.email) == email)
-    ):
-        raise HTTPException(status_code=409, detail="An account already uses this email.")
-    if db.scalar(
-        select(AdminRegistrationRequest).where(
-            func.lower(AdminRegistrationRequest.email) == email,
-            AdminRegistrationRequest.status == "pending",
-        )
-    ):
-        raise HTTPException(status_code=409, detail="A request for this email is already pending.")
-
-    if payload.facility_id is not None and db.get(Facility, payload.facility_id) is None:
-        raise HTTPException(status_code=404, detail="Facility not found.")
-    if (
-        payload.provider_id is not None
-        and db.get(AmbulanceProvider, payload.provider_id) is None
-    ):
-        raise HTTPException(status_code=404, detail="Ambulance provider not found.")
-    try:
-        password_hash = hash_password(payload.password)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=422, detail="Password must be at most 72 UTF-8 bytes."
-        ) from exc
-
-    request = AdminRegistrationRequest(
-        full_name=payload.full_name.strip(),
-        email=email,
-        password_hash=password_hash,
-        facility_id=payload.facility_id,
-        provider_id=payload.provider_id,
-    )
-    db.add(request)
-    db.commit()
-    return {
-        "status": "pending",
-        "message": (
-            "Your request was submitted. A superadmin must verify your affiliation "
-            "before approving access."
-        ),
-    }
-
-
 @router.post("/admin/login", response_model=TokenOut)
 def login(payload: LoginIn, db: Session = Depends(get_db)):
     """Admin authentication (PRD 6.4)."""
@@ -135,11 +81,78 @@ def login(payload: LoginIn, db: Session = Depends(get_db)):
         "scope": "facility" if admin.facility_id else "provider",
         "facility_id": admin.facility_id,
         "provider_id": admin.provider_id,
+        "must_change_password": admin.must_change_password,
     }
 
 
+@router.post("/admin/password", status_code=status.HTTP_204_NO_CONTENT)
+def change_password(
+    payload: PasswordChangeIn,
+    admin=Depends(get_admin_with_temporary_password),
+    db: Session = Depends(get_db),
+):
+    """Replace the current (possibly temporary) password."""
+    if not verify_password(payload.current_password, admin.password_hash):
+        raise HTTPException(status_code=400, detail="Current password is incorrect.")
+    if payload.new_password == payload.current_password:
+        raise HTTPException(
+            status_code=422, detail="Choose a password different from the current one."
+        )
+    try:
+        admin.password_hash = hash_password(payload.new_password)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422, detail="Password must be at most 72 UTF-8 bytes."
+        ) from exc
+    admin.must_change_password = False
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.put("/admin/location")
+def update_location(
+    payload: LocationIn,
+    admin=Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Advanced settings: the organization sets its own map position.
+
+    Confirming the location is what makes a newly created listing appear in
+    public search.
+    """
+    if not in_ghana(payload.lat, payload.lng):
+        raise HTTPException(
+            status_code=422,
+            detail="That point is outside Ghana. Check latitude and longitude are not swapped.",
+        )
+    if admin.facility_id:
+        organization_type = "facility"
+        organization = db.get(Facility, admin.facility_id)
+    else:
+        organization_type = "provider"
+        organization = db.get(AmbulanceProvider, admin.provider_id)
+    if organization is None:
+        raise HTTPException(status_code=404, detail="Organization not found")
+
+    changes = {
+        "lat": {"before": organization.lat, "after": payload.lat},
+        "lng": {"before": organization.lng, "after": payload.lng},
+        "location_confirmed": {"before": organization.location_confirmed, "after": True},
+    }
+    organization.lat = payload.lat
+    organization.lng = payload.lng
+    organization.location_confirmed = True
+    organization.last_updated = utcnow()
+    _record_change(
+        db, admin, organization_type, organization.id, organization.name,
+        "location.updated", changes,
+    )
+    db.commit()
+    return {"lat": payload.lat, "lng": payload.lng, "location_confirmed": True}
+
+
 @router.get("/admin/me", response_model=AdminMeOut)
-def me(admin=Depends(get_current_admin), db: Session = Depends(get_db)):
+def me(admin=Depends(get_admin_with_temporary_password), db: Session = Depends(get_db)):
     facility = db.get(Facility, admin.facility_id) if admin.facility_id else None
     provider = db.get(AmbulanceProvider, admin.provider_id) if admin.provider_id else None
     return {
@@ -151,6 +164,7 @@ def me(admin=Depends(get_current_admin), db: Session = Depends(get_db)):
         "provider_id": admin.provider_id,
         "facility_name": facility.name if facility else None,
         "provider_name": provider.name if provider else None,
+        "must_change_password": admin.must_change_password,
     }
 
 
@@ -339,6 +353,7 @@ def dashboard(admin=Depends(get_current_admin), db: Session = Depends(get_db)):
         return {
             "scope": "facility",
             "stale_after_hours": settings.STALE_AFTER_HOURS,
+            "location_confirmed": facility.location_confirmed,
             "facility": facility_detail(facility),
         }
 
@@ -350,5 +365,6 @@ def dashboard(admin=Depends(get_current_admin), db: Session = Depends(get_db)):
     return {
         "scope": "provider",
         "stale_after_hours": settings.STALE_AFTER_HOURS,
+        "location_confirmed": provider.location_confirmed,
         "provider": ambulance_detail(provider),
     }

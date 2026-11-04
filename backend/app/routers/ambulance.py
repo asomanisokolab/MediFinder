@@ -18,6 +18,9 @@ from ..schemas import AmbulanceDetail, AmbulanceSummary, Page
 
 router = APIRouter(prefix="/ambulance", tags=["ambulance"])
 
+# A provider still on its placeholder location is never listed publicly.
+_LISTED = AmbulanceProvider.location_confirmed.is_(True)
+
 
 def resolve_area(db: Session, lat: float, lng: float) -> tuple[str | None, str | None]:
     """Best-effort (region, district) for a coordinate.
@@ -29,7 +32,10 @@ def resolve_area(db: Session, lat: float, lng: float) -> tuple[str | None, str |
     """
     dist = distance_km_expr(Facility.lat, Facility.lng, lat, lng)
     row = db.execute(
-        select(Facility, dist.label("d")).order_by(dist.asc()).limit(1)
+        select(Facility, dist.label("d"))
+        .where(Facility.location_confirmed.is_(True))
+        .order_by(dist.asc())
+        .limit(1)
     ).first()
     if row is not None and row[1] is not None and row[1] <= 120:
         facility = row[0]
@@ -51,7 +57,7 @@ def _filters(
     is_24_hour: bool | None,
     q: str | None,
 ):
-    conds = []
+    conds = [_LISTED]
     if region:
         conds.append(func.lower(AmbulanceProvider.region) == region.strip().lower())
     if district:
@@ -87,9 +93,10 @@ def covering_providers(
 
     if region:
         conds = [
+            _LISTED,
             AmbulanceProvider.coverage.any(
                 func.lower(AmbulanceCoverage.region) == region.lower()
-            )
+            ),
         ]
         if service_level:
             conds.append(AmbulanceProvider.service_level == service_level.strip().upper())
@@ -123,6 +130,7 @@ def covering_providers(
             lat, lng, settings.EMERGENCY_RADIUS_KM
         )
         conds = [
+            _LISTED,
             AmbulanceProvider.lat.between(min_lat, max_lat),
             AmbulanceProvider.lng.between(min_lng, max_lng),
         ]

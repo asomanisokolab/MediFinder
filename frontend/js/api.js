@@ -51,7 +51,7 @@ async function api(path, params = {}, options = {}) {
       body: options.body ? JSON.stringify(options.body) : undefined,
     });
   } catch (err) {
-    throw new Error('Cannot reach MediFinder. Check your connection and try again.');
+    throw new Error('Cannot reach FindCare. Check your connection and try again.');
   }
 
   if (response.status === 429) {

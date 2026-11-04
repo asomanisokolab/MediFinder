@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Contact us — FindCare Ghana</title>
+<meta name="description" content="Run a hospital, clinic, pharmacy, ambulance, hearse or caregiving service in Ghana? Contact us to be listed.">
+<meta name="theme-color" content="#1a56db">
+<link rel="icon" type="image/svg+xml" href="/images/findcareghana-icon.svg">
+<link rel="apple-touch-icon" href="/images/findcareghana-icon-180.png">
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="site">
+  <div class="wrap">
+    <a class="brand" href="index.html"><img class="brand-logo" src="/images/findcareghana-logo.svg" alt="FindCare Ghana"></a>
+    <nav aria-label="Main">
+      <a href="index.html">Find care</a>
+      <a href="ambulance.html">Ambulance</a>
+      <a href="contact.html">Contact us</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main" class="wrap">
+  <h1>Contact us</h1>
+  <p class="lede">Run a hospital, clinic, pharmacy, ambulance, hearse or caregiving service? Send us your details and we will list you.</p>
+  <p class="notice">
+    Our team checks every request before anything is published. Once approved, we email
+    you a login so you can keep your listing up to date.
+  </p>
+
+  <p>Prefer email? Write to <a href="mailto:info@findcareghana.com">info@findcareghana.com</a>, or message <strong>@findcareGh</strong> on Instagram, X or Facebook.</p>
+
+  <div id="contact-message" aria-live="polite"></div>
+  <form id="contact-form" class="card" style="max-width:520px">
+    <div class="field">
+      <label for="facility-name">Facility or business name</label>
+      <input type="text" id="facility-name" autocomplete="organization" required minlength="2" maxlength="200">
+    </div>
+    <div class="field">
+      <label for="organization-type">Type</label>
+      <select id="organization-type" required>
+        <option value="">Choose a type</option>
+        <option value="hospital_government">Hospital (government)</option>
+        <option value="hospital_private">Hospital (private)</option>
+        <option value="clinic">Clinic</option>
+        <option value="pharmacy">Pharmacy / medical store</option>
+        <option value="ambulance">Ambulance service</option>
+        <option value="hearse">Hearse service</option>
+        <option value="caregiver">Caregiver</option>
+      </select>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label for="phone">Phone number</label>
+        <input type="tel" id="phone" autocomplete="tel" required minlength="7" maxlength="40" pattern="\+?[0-9 ()\-]{7,40}" placeholder="+233 24 000 0000">
+      </div>
+      <div class="field">
+        <label for="email">Email</label>
+        <input type="email" id="email" autocomplete="email" required maxlength="160">
+      </div>
+    </div>
+    <div class="field">
+      <label for="contact-name">Your name (optional)</label>
+      <input type="text" id="contact-name" autocomplete="name" maxlength="120">
+    </div>
+    <div class="field">
+      <label for="message">Location and anything else we should know (optional)</label>
+      <textarea id="message" rows="4" maxlength="1000"></textarea>
+    </div>
+    <button type="submit" id="contact-btn">Send request</button>
+  </form>
+  <p><a href="/admin">Already listed? Sign in</a></p>
+
+  <footer class="site">
+    <ul class="footer-contact">
+      <li><a href="mailto:info@findcareghana.com">info@findcareghana.com</a></li>
+      <li><a href="https://www.instagram.com/findcaregh" target="_blank" rel="noopener">Instagram</a></li>
+      <li><a href="https://x.com/findcaregh" target="_blank" rel="noopener">X</a></li>
+      <li><a href="https://www.facebook.com/findcaregh" target="_blank" rel="noopener">Facebook</a></li>
+      <li>@findcareGh</li>
+    </ul>
+    <p>FindCare Ghana · In a real emergency call 112.</p>
+  </footer>
+</main>
+
+<script src="js/api.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/contact.js"></script>
+</body>
+</html>

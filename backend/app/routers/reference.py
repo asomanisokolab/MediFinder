@@ -8,7 +8,9 @@ from ..models import Facility, Insurance, Service
 from ..reference import (
     CLASSIFICATIONS,
     COST_BANDS,
+    FACILITY_CATEGORIES,
     FACILITY_TYPES,
+    ORGANIZATION_TYPES,
     GHANA_REGIONS,
     INSURANCE_PROVIDERS,
     OPERATOR_TYPES,
@@ -31,7 +33,10 @@ def list_localities(region: str, db: Session = Depends(get_db)):
     """Cities and towns known in a region, for the manual search dropdown."""
     rows = db.scalars(
         select(distinct(Facility.city))
-        .where(func.lower(Facility.region) == region.strip().lower())
+        .where(
+            func.lower(Facility.region) == region.strip().lower(),
+            Facility.location_confirmed.is_(True),
+        )
         .order_by(Facility.city.asc())
     ).all()
     return [r for r in rows if r]
@@ -61,6 +66,11 @@ def list_enums():
     """Everything a client needs to build its filter controls."""
     return {
         "facility_types": FACILITY_TYPES,
+        "facility_categories": FACILITY_CATEGORIES,
+        "organization_types": [
+            {"value": key, "label": item["label"], "category": item["category"]}
+            for key, item in ORGANIZATION_TYPES.items()
+        ],
         "operator_types": OPERATOR_TYPES,
         "service_levels": SERVICE_LEVELS,
         "cost_bands": COST_BANDS,

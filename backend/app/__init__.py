@@ -1,3 +1,3 @@
-"""MediFinder Ghana backend package."""
+"""FindCare Ghana backend package."""
 
 __version__ = "1.1.0"

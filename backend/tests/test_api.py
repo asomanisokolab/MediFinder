@@ -5,7 +5,8 @@ Or with pytest:  pytest tests/test_api.py
 
 Exercises the paths that matter for Phase 1: distance ordering, the dental
 filter, ambulance coverage-before-distance, emergency mode with and without
-GPS, the 24-hour staleness rule, and admin authorisation boundaries.
+GPS, the 24-hour staleness rule, admin authorisation boundaries, and the
+contact request -> superadmin-created account -> first sign-in flow.
 """
 import sys
 from pathlib import Path
@@ -14,13 +15,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-from app.admin_requests import approve_request  # noqa: E402
 from app.database import SessionLocal  # noqa: E402
 from app.models import (  # noqa: E402
     Admin,
     AdminChangeLog,
-    AdminRegistrationRequest,
     AmbulanceProvider,
+    ContactRequest,
     Facility,
 )
 from app.main import app  # noqa: E402
@@ -33,6 +33,22 @@ API = "/api/v1"
 ACCRA = {"lat": 5.5636, "lng": -0.1969}
 
 _failures: list[str] = []
+
+SUPERADMIN_EMAIL = "system-owner@medifinder.gh"
+SUPERADMIN_PASSWORD = "System-Owner-Testing-123"
+_superadmin_headers: dict = {}
+
+
+def superadmin_headers() -> dict:
+    """Create the test superadmin on first use; tests run in name order."""
+    if not _superadmin_headers:
+        create_superadmin(SUPERADMIN_EMAIL, "System Owner", SUPERADMIN_PASSWORD)
+        login = client.post(
+            f"{API}/superadmin/login",
+            json={"email": SUPERADMIN_EMAIL, "password": SUPERADMIN_PASSWORD},
+        )
+        _superadmin_headers["Authorization"] = f"Bearer {login.json()['access_token']}"
+    return _superadmin_headers
 
 
 def check(label: str, condition: bool, detail: str = "") -> None:
@@ -54,68 +70,250 @@ def test_health():
     )
 
 
-def test_admin_registration_requires_approval():
-    email = "registration-check@medifinder.gh"
+def test_contact_request_to_first_sign_in():
     payload = {
-        "full_name": "Registration Check",
-        "email": email,
-        "password": "Registration-Check-123",
-        "scope": "facility",
-        "facility_id": 1,
+        "facility_name": "Hohoe Riverside Clinic",
+        "organization_type": "clinic",
+        "email": "Riverside-Clinic@medifinder.gh",
+        "phone": "+233 24 000 0000",
+        "contact_name": "Ama Mensah",
+        "message": "Near the main lorry station.",
     }
-    response = client.post(f"{API}/admin/register", json=payload)
-    check("registration creates a pending request", response.status_code == 202)
-    check("request says approval is required", response.json()["status"] == "pending")
+    submitted = client.post(f"{API}/contact", json=payload)
+    check("contact request is accepted for review", submitted.status_code == 202)
     check(
-        "pending registration cannot sign in",
+        "duplicate pending contact request is rejected",
+        client.post(f"{API}/contact", json=payload).status_code == 409,
+    )
+    check(
+        "unknown organization type is rejected",
+        client.post(
+            f"{API}/contact", json={**payload, "organization_type": "spa"}
+        ).status_code == 422,
+    )
+    check(
+        "contact request grants no sign-in",
         client.post(f"{API}/admin/login", json={
-            "email": email, "password": payload["password"]
+            "email": payload["email"], "password": "anything-at-all"
+        }).status_code == 401,
+    )
+
+    headers = superadmin_headers()
+    overview = client.get(f"{API}/superadmin/overview", headers=headers).json()
+    request = next(
+        item for item in overview["contact_requests"]
+        if item["facility_name"] == payload["facility_name"]
+    )
+    check("superadmin sees the contact request", request["email"] == payload["email"].lower())
+
+    create = {
+        "contact_request_id": request["id"],
+        "organization_type": "clinic",
+        "name": payload["facility_name"],
+        "email": request["email"],
+        "full_name": payload["contact_name"],
+        "phone": payload["phone"],
+        "classification": "Level E",
+        "region": "Volta",
+        "city": "Hohoe",
+    }
+    check(
+        "hospitals and clinics need a classification",
+        client.post(
+            f"{API}/superadmin/organizations",
+            json={**create, "classification": ""},
+            headers=headers,
+        ).status_code == 422,
+    )
+    created = client.post(f"{API}/superadmin/organizations", json=create, headers=headers)
+    check("superadmin creates the listing and login", created.status_code == 201, created.text)
+    result = created.json()
+    temporary = result.get("temporary_password", "")
+    check("unsent email returns the temporary password once", len(temporary) >= 20)
+    check(
+        "superadmin gets a ready-to-send login message",
+        temporary in result["message"]["body"]
+        and request["email"] in result["message"]["body"]
+        and "info@findcareghana.com" in result["message"]["body"],
+    )
+    check(
+        "an approved request cannot be approved twice",
+        client.post(
+            f"{API}/superadmin/organizations",
+            json={**create, "email": "second@medifinder.gh"},
+            headers=headers,
+        ).status_code == 404,
+    )
+    refreshed = client.get(f"{API}/superadmin/overview", headers=headers).json()
+    check(
+        "approved request leaves the pending list",
+        all(item["id"] != request["id"] for item in refreshed["contact_requests"]),
+    )
+
+    login = client.post(
+        f"{API}/admin/login", json={"email": create["email"], "password": temporary}
+    )
+    check("temporary password signs in", login.status_code == 200)
+    check("sign-in reports a required password change", login.json()["must_change_password"])
+    admin_headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+    check(
+        "dashboard is blocked until the password is changed",
+        client.get(f"{API}/admin/dashboard", headers=admin_headers).status_code == 403,
+    )
+    check(
+        "who-am-I still works on a temporary password",
+        client.get(f"{API}/admin/me", headers=admin_headers).json()["must_change_password"],
+    )
+    check(
+        "password change checks the current password",
+        client.post(f"{API}/admin/password", headers=admin_headers, json={
+            "current_password": "wrong-password", "new_password": "Riverside-Clinic-Own-1",
+        }).status_code == 400,
+    )
+    changed = client.post(f"{API}/admin/password", headers=admin_headers, json={
+        "current_password": temporary, "new_password": "Riverside-Clinic-Own-1",
+    })
+    check("password change succeeds", changed.status_code == 204)
+    check(
+        "temporary password stops working",
+        client.post(f"{API}/admin/login", json={
+            "email": create["email"], "password": temporary
+        }).status_code == 401,
+    )
+    dash = client.get(f"{API}/admin/dashboard", headers=admin_headers)
+    check("dashboard opens after the change", dash.status_code == 200)
+    check("new listing starts without a confirmed location",
+          dash.json()["location_confirmed"] is False)
+
+    def public_hits():
+        return client.get(
+            f"{API}/facilities", params={"q": payload["facility_name"]}
+        ).json()["items"]
+
+    check("unlocated listing is hidden from public search", public_hits() == [])
+    check(
+        "swapped coordinates are rejected",
+        client.put(f"{API}/admin/location", headers=admin_headers,
+                   json={"lat": 0.47, "lng": 7.1}).status_code == 422,
+    )
+    located = client.put(f"{API}/admin/location", headers=admin_headers,
+                         json={"lat": 7.1520, "lng": 0.4730})
+    check("organization sets its own location", located.status_code == 200)
+    hits = public_hits()
+    check("located listing appears in public search", len(hits) == 1)
+    check("listing carries its category", bool(hits) and hits[0]["category"] == "clinic")
+    check(
+        "category filter narrows search",
+        all(item["category"] == "clinic" for item in client.get(
+            f"{API}/facilities", params={"category": "clinic", "page_size": 100}
+        ).json()["items"]),
+    )
+
+    check(
+        "admin can change their own password again later",
+        client.post(f"{API}/admin/password", headers=admin_headers, json={
+            "current_password": "Riverside-Clinic-Own-1",
+            "new_password": "Riverside-Clinic-Own-2",
+        }).status_code == 204
+        and client.get(f"{API}/admin/dashboard", headers=admin_headers).status_code == 200,
+    )
+    reset = client.post(
+        f"{API}/superadmin/admins/{result['admin_id']}/reset-password", headers=headers
+    )
+    new_default = reset.json().get("temporary_password", "")
+    check("superadmin can reset a lost password to a new default",
+          reset.status_code == 200 and len(new_default) >= 20
+          and new_default in reset.json()["message"]["body"])
+    check(
+        "the old password stops working after a reset",
+        client.post(f"{API}/admin/login", json={
+            "email": create["email"], "password": "Riverside-Clinic-Own-2"
         }).status_code == 401,
     )
     check(
-        "duplicate pending registration is rejected",
-        client.post(f"{API}/admin/register", json=payload).status_code == 409,
+        "a reset locks the open session until a new password is chosen",
+        client.get(f"{API}/admin/dashboard", headers=admin_headers).status_code == 403,
+    )
+    relogin = client.post(
+        f"{API}/admin/login", json={"email": create["email"], "password": new_default}
+    )
+    check("the new default password signs in and asks for a change",
+          relogin.status_code == 200 and relogin.json()["must_change_password"])
+    relogin_headers = {"Authorization": f"Bearer {relogin.json()['access_token']}"}
+    check(
+        "admin sets their own password after a reset",
+        client.post(f"{API}/admin/password", headers=relogin_headers, json={
+            "current_password": new_default, "new_password": "Riverside-Clinic-Own-3",
+        }).status_code == 204
+        and client.get(f"{API}/admin/dashboard", headers=relogin_headers).status_code == 200,
     )
 
-    with SessionLocal() as db:
-        request = db.query(AdminRegistrationRequest).filter_by(email=email).one()
-        check("request stores only a password hash", request.password_hash != payload["password"])
-        admin = approve_request(db, request.id)
-        check("approval creates an active scoped admin", admin.facility_id == 1)
-        check("approved request no longer retains password hash", request.password_hash is None)
+    ambulance = client.post(f"{API}/superadmin/organizations", headers=headers, json={
+        "organization_type": "ambulance",
+        "name": "Volta Rapid Ambulance",
+        "email": "volta-rapid@medifinder.gh",
+        "phone": "+233 24 000 0001",
+        "region": "Volta",
+        "lat": 6.6,
+        "lng": 0.47,
+    })
+    check("ambulance services become ambulance providers",
+          ambulance.status_code == 201
+          and ambulance.json()["organization_type"] == "provider")
 
+    hearse = client.post(f"{API}/superadmin/organizations", headers=headers, json={
+        "organization_type": "hearse",
+        "name": "Ridge Hearse Services",
+        "email": "ridge-hearse@medifinder.gh",
+        "phone": "+233 24 000 0002",
+        "region": "Greater Accra",
+        "lat": ACCRA["lat"],
+        "lng": ACCRA["lng"],
+    })
+    check("non-health services can be listed", hearse.status_code == 201)
+    emergency = client.get(f"{API}/emergency", params=ACCRA).json()
     check(
-        "approved registration can sign in",
-        client.post(f"{API}/admin/login", json={
-            "email": email, "password": payload["password"]
-        }).status_code == 200,
+        "emergency mode never offers a hearse service",
+        all(f["category"] in ("hospital", "clinic") for f in emergency["facilities"]),
+    )
+
+    client.post(f"{API}/contact", json={**payload, "email": "reject-me@medifinder.gh"})
+    with SessionLocal() as db:
+        rejected_id = db.query(ContactRequest).filter_by(
+            email="reject-me@medifinder.gh"
+        ).one().id
+    check(
+        "superadmin can reject a contact request",
+        client.post(
+            f"{API}/superadmin/contact-requests/{rejected_id}/reject", headers=headers
+        ).status_code == 204,
     )
 
 
 def test_admin_pages_are_separate_from_public_navigation():
     login_page = client.get("/admin")
-    registration_page = client.get("/admin/register")
+    registration_page = client.get("/admin/register", follow_redirects=False)
     public_page = client.get("/")
     check("separate admin login URL is served", login_page.status_code == 200)
-    check("separate registration URL is served", registration_page.status_code == 200)
+    check(
+        "old registration URL redirects to the contact page",
+        registration_page.status_code == 308
+        and registration_page.headers["location"] == "/contact.html",
+    )
+    check("contact page is served", b'id="contact-form"' in client.get("/contact.html").content)
+    check(
+        "public navigation links to contact us",
+        b'href="contact.html"' in public_page.content,
+    )
     check(
         "public navigation does not link to admin",
         b">Admin</a>" not in public_page.content,
     )
 
 
-def test_superadmin_can_manage_requests_and_review_changes():
-    email = "system-owner@medifinder.gh"
-    password = "System-Owner-Testing-123"
-    create_superadmin(email, "System Owner", password)
-
-    login = client.post(
-        f"{API}/superadmin/login",
-        json={"email": email, "password": password},
-    )
-    check("superadmin can sign in", login.status_code == 200)
-    token = login.json()["access_token"]
-    super_headers = {"Authorization": f"Bearer {token}"}
+def test_superadmin_can_manage_directory_and_review_changes():
+    super_headers = superadmin_headers()
+    check("superadmin can sign in", bool(super_headers))
 
     facility_login = client.post(
         f"{API}/admin/login",
@@ -134,30 +332,20 @@ def test_superadmin_can_manage_requests_and_review_changes():
         client.get(f"{API}/admin/dashboard", headers=super_headers).status_code == 403,
     )
 
-    request_payload = {
-        "full_name": "Superadmin Managed Applicant",
-        "email": "superadmin-managed@medifinder.gh",
-        "password": "Secure-Applicant-123",
-        "scope": "facility",
-        "facility_id": 1,
-    }
-    duplicate_superadmin_email = {**request_payload, "email": email}
     check(
-        "organization registration cannot reuse a superadmin email",
-        client.post(
-            f"{API}/admin/register", json=duplicate_superadmin_email
-        ).status_code == 409,
+        "organization login cannot reuse a superadmin email",
+        client.post(f"{API}/superadmin/organizations", headers=super_headers, json={
+            "organization_type": "pharmacy",
+            "name": "Duplicate Email Pharmacy",
+            "email": SUPERADMIN_EMAIL,
+            "phone": "+233 24 000 0003",
+            "region": "Ashanti",
+        }).status_code == 409,
     )
-    submitted = client.post(f"{API}/admin/register", json=request_payload)
-    check("new application is submitted", submitted.status_code == 202)
 
     overview = client.get(f"{API}/superadmin/overview", headers=super_headers)
     check("superadmin overview loads", overview.status_code == 200)
     content = overview.json()
-    request = next(
-        item for item in content["requests"]
-        if item["email"] == request_payload["email"]
-    )
     check("superadmin sees facilities and providers", len(content["facilities"]) >= 50
           and len(content["providers"]) >= 20)
     check("superadmin sees organization admins", len(content["admins"]) >= 2)
@@ -166,6 +354,7 @@ def test_superadmin_can_manage_requests_and_review_changes():
     facility_payload = {
         "name": f"{facility['name']} (managed test)",
         "type": facility["type"],
+        "category": facility["category"],
         "classification": facility["classification"],
         "address": facility["address"],
         "region": facility["region"],
@@ -257,20 +446,6 @@ def test_superadmin_can_manage_requests_and_review_changes():
         == provider_payload["name"],
     )
 
-    approved = client.post(
-        f"{API}/superadmin/requests/{request['id']}/approve",
-        headers=super_headers,
-    )
-    check("superadmin can approve access request", approved.status_code == 200)
-    applicant_login = client.post(
-        f"{API}/admin/login",
-        json={
-            "email": request_payload["email"],
-            "password": request_payload["password"],
-        },
-    )
-    check("approved applicant can sign in", applicant_login.status_code == 200)
-
     with SessionLocal() as db:
         changes = db.query(AdminChangeLog).filter_by(admin_email="facility@medifinder.gh").all()
         check("admin changes are recorded for superadmin review", len(changes) >= 2)
@@ -286,7 +461,7 @@ def test_superadmin_can_manage_requests_and_review_changes():
     )
     created_admin = next(
         item for item in refreshed["admins"]
-        if item["email"] == request_payload["email"]
+        if item["email"] == "riverside-clinic@medifinder.gh"
     )
     revoked = client.delete(
         f"{API}/superadmin/admins/{created_admin['id']}",
@@ -334,13 +509,6 @@ def test_superadmin_can_manage_requests_and_review_changes():
                 password_hash="not-used",
                 full_name="Facility Delete Test",
             ),
-            AdminRegistrationRequest(
-                facility_id=facility_id,
-                email="pending-facility-delete@medifinder.gh",
-                password_hash=None,
-                full_name="Pending Facility Delete",
-                status="pending",
-            ),
         ])
         db.commit()
 
@@ -364,11 +532,8 @@ def test_superadmin_can_manage_requests_and_review_changes():
     check("superadmin can permanently delete a facility", deleted_facility.status_code == 204)
     with SessionLocal() as db:
         check(
-            "facility deletion removes scoped admins and pending requests",
-            db.query(Admin).filter_by(email="delete-facility-test@medifinder.gh").count() == 0
-            and db.query(AdminRegistrationRequest)
-            .filter_by(email="pending-facility-delete@medifinder.gh")
-            .count() == 0,
+            "facility deletion removes scoped admins",
+            db.query(Admin).filter_by(email="delete-facility-test@medifinder.gh").count() == 0,
         )
         check(
             "directory deletion is retained in audit history",

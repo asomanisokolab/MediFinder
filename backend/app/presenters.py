@@ -67,6 +67,7 @@ def facility_summary(facility: Facility, distance_km: float | None = None) -> di
         "id": facility.id,
         "name": facility.name,
         "type": facility.type,
+        "category": facility.category,
         "classification": facility.classification,
         "region": facility.region,
         "city": facility.city,

@@ -1,8 +1,18 @@
-# MediFinder Ghana
+# FindCare Ghana
 
-Phase 1 (MVP) implementation of **MediFinder Ghana PRD v1.1** — a directory of
-medical facilities, dental care and ambulance providers across all 16 regions
-of Ghana.
+Phase 1 (MVP) implementation of the FindCare Ghana directory (built to the
+MediFinder Ghana PRD v1.1). It lists hospitals, clinics, pharmacies and medical
+stores, ambulance services, hearse services and caregivers across all 16
+regions of Ghana. It is served at <https://findcareghana.com>.
+
+- Email: <info@findcareghana.com>
+- Instagram, X and Facebook: **@findcareGh**
+
+These are shown in every public page footer and on the Contact us page.
+The site uses the FindCare Ghana wordmark (`frontend/images/findcareghana-logo.svg`)
+and matching medical-cross icons (`findcareghana-icon*`). Internal names are
+unchanged: the repository, the Python package and the `MEDIFINDER_*`
+environment variables, so existing `.env` files keep working.
 
 ---
 
@@ -36,27 +46,95 @@ python -m uvicorn app.main:app --reload --port 8000
 
 Then open <http://localhost:8000>. API docs are at `/api/docs`.
 
-Administrator login is at `/admin`; the access request form is at
-`/admin/register`. Neither URL is linked from the public navigation. Requests
-remain pending until a superadmin verifies the applicant's affiliation and
-approves the request in the superadmin dashboard.
+### How organizations get listed
 
-The superadmin dashboard is at `/superadmin`. Superadmins can review and decide
-access requests, inspect facility/provider listings and their scoped admins,
-revoke organization-admin access, edit all facility and ambulance-provider
-directory fields, and review the latest 200 change records. Permanent deletion
-requires confirmation and also removes the deleted organization's admins,
-pending access requests, and related directory data; deleting a provider also
-clears facility links to it. Deletions and superadmin edits are audited.
-Organization-admin changes are audited from the time this feature is deployed;
-older updates are not retroactively recorded. Applicants are not emailed when
-a request is approved or rejected, so the superadmin must notify them
-separately.
+There is no self-registration. Hospitals (government or private), clinics,
+pharmacies and medical stores, ambulance services, hearse services and
+caregivers ask to be listed through the public **Contact us** page
+(`/contact.html`, linked in the main navigation). They give their facility
+name, type, phone number and email, and can add a contact name and a message.
+The page also shows <info@findcareghana.com> and @findcareGh for anyone who
+prefers to write directly. A contact request grants nothing on its own.
 
-Superadmin accounts are never created by public registration or by the seed
-command. An authorized operator provisions the initial superadmin from the
-Droplet shell with the interactive CLI below. Once that first account exists,
-routine access-request approvals and admin management happen in the dashboard.
+A superadmin reviews each request in the dashboard at `/superadmin`.
+**Approve and create login** opens a form prefilled from the request. The
+superadmin confirms the region, classification (for hospitals and clinics) and
+other details. Saving does four things:
+
+1. Creates the listing. Ambulance services become ambulance providers;
+   everything else becomes a facility with a `category` of `hospital`,
+   `clinic`, `pharmacy`, `hearse` or `caregiver`.
+2. Creates the organization's admin login: their email plus a random default
+   password.
+3. Shows the superadmin a ready-to-send login message.
+4. Marks the request approved.
+
+**The superadmin emails the login details directly.** The app does not send
+email. After saving, the dashboard shows the finished message once: the
+sign-in link, the organization's email and its default password. Send it to
+the organization's email address from your own mailbox:
+
+- **Open in email app** opens a new email to the organization with the subject
+  and message already filled in. Check it and press send.
+- **Copy message** copies the subject and message, ready to paste into webmail
+  (Gmail, Outlook and so on).
+
+The default password is not shown again, so send the message before leaving
+the page. The organization signs in with their email and the default
+password, and must then choose their own password before anything else.
+
+After the first sign-in, only the organization knows its password. Whenever
+it wants a new one, it changes it itself under **Advanced settings → Change
+password** (current password, then the new one twice).
+
+**Lost password.** An organization that cannot sign in contacts FindCare
+(<info@findcareghana.com> or @findcareGh). After confirming it is really
+them (for example, call the listing's phone number), the superadmin clicks
+**Reset password** next to their admin login. This does three things:
+
+1. Replaces the lost password with a new random default password. The old
+   one stops working at once, and any open session is locked.
+2. Shows a ready-to-send "password was reset" message, sent the same way as a
+   new login (**Open in email app** or **Copy message**).
+3. Makes the organization choose its own new password when it signs in with
+   the default one.
+
+The superadmin never sees or chooses the organization's own password.
+
+A listing can also be created without a contact request, under **Add an
+organization**.
+
+The organization signs in at `/admin` (deliberately not in the public
+navigation) and must choose its own password before the dashboard opens.
+Under **Advanced settings** it sets its map location. It can type the latitude
+and longitude, or press **Use this device's location** while standing at the
+entrance. Until a location is set, the listing sits at a region-centre
+placeholder and is **hidden from public search and emergency mode**, so no one
+is ever sent to a guessed position. If the superadmin enters coordinates when
+creating the listing, it is visible immediately.
+
+Emergency mode only returns hospitals and clinics; pharmacies, hearse services
+and caregivers appear in the regular search, filtered by **Looking for**.
+
+From the dashboard, superadmins can also:
+
+- reset a lost organization password to a new default password (see above)
+- revoke organization-admin access
+- edit every facility and ambulance-provider directory field, including the
+  category
+- review the latest 200 change records
+
+Permanent deletion requires confirmation and also removes the deleted
+organization's admins and related directory data. Deleting a provider also
+clears facility links to it. Creations, deletions and superadmin edits are
+audited. Rejected requests are not notified automatically.
+
+Superadmin accounts are never created through the web or by the seed command.
+An authorized operator provisions one from the Droplet shell (see deployment
+step 5). The command generates a random strong password and prints it once.
+`reset-password` replaces a lost superadmin password the same way. (This is
+only for the superadmin's own account. Organization passwords are reset
+from the dashboard.)
 
 The seed command creates the demo administrator accounts below. These are
 development accounts only; change their passwords or remove them before
@@ -75,9 +153,12 @@ python -m app.seed --reset
 python tests/test_api.py
 ```
 
-Checks cover pending admin registration and approval, distance ordering, the
-dental filter, ambulance coverage-before-distance, emergency mode with and
-without GPS, the 24-hour staleness rule, and admin authorisation boundaries.
+Checks cover the contact request → superadmin-created login → forced password
+change → location setup flow, hidden unlocated listings, distance ordering,
+the dental and category filters, ambulance coverage-before-distance, emergency
+mode with and without GPS (never offering non-health services), the 24-hour
+staleness rule, and admin authorisation boundaries, including the
+ready-to-send login message returned to the superadmin.
 
 ---
 
@@ -93,7 +174,7 @@ supplies PostgreSQL with PostGIS and configures the API to connect to it.
 
 The Docker Compose setup runs the API and PostgreSQL with PostGIS. The API is
 published only on `127.0.0.1:8000`, for a host-level Caddy reverse proxy. This
-allows Caddy to serve MediFinder alongside other projects without competing
+allows Caddy to serve FindCare alongside other projects without competing
 for ports 80 or 443. Use an Ubuntu Droplet and point your domain's DNS `A`
 record to its public IP. Allow inbound SSH (preferably restricted to your IP),
 HTTP, and HTTPS in the DigitalOcean firewall; do not expose PostgreSQL or
@@ -124,15 +205,21 @@ port 8000 publicly.
    docker compose up -d
    ```
 
-5. Create the initial superadmin from the Droplet. The password is prompted
-   interactively and is not included in shell history:
+5. Create the initial superadmin from the Droplet. The command generates a
+   random strong password and prints it **once**; copy it into a password
+   manager straight away. It is not stored anywhere in plain text and is not
+   emailed:
 
    ```bash
-   docker compose exec -it app python -m app.superadmins create owner@example.com "System Owner"
+   docker compose exec app python -m app.superadmins create owner@example.com "System Owner"
    ```
 
-   Use your real admin email and name. Sign in at `/superadmin`; public
-   registration cannot create superadmin accounts.
+   Use your real admin email and name, then sign in at `/superadmin`. If the
+   password is ever lost, generate a replacement the same way:
+
+   ```bash
+   docker compose exec app python -m app.superadmins reset-password owner@example.com
+   ```
 6. Add a site block for your domain to the existing host Caddyfile (for
    example, `/etc/caddy/Caddyfile`). Do not replace the file or remove other
    projects' site blocks:
@@ -162,27 +249,31 @@ The seed data is unverified demo data: the phone numbers are placeholders and
 do not connect. Change both demo administrator passwords before sharing this
 deployment. Do not mark the directory verified or rely on it for emergencies.
 
-### Reviewing administrator requests
+### Reviewing contact requests
 
-Public registration only submits a pending request; it does not create an
-active account. Before approving, independently verify that the applicant is
-authorized to represent the selected facility or ambulance provider. Create
-the initial superadmin from an authorized Droplet shell only once (the
-password is prompted and is not included in shell history):
+A contact request is unverified public input. Before approving, independently
+confirm the organization exists and that the email and phone belong to it
+(for example, call the number). Approving creates a live login for that email.
 
-```bash
-docker compose exec -it app python -m app.superadmins create owner@example.com "System Owner"
-```
+Sign in at `/superadmin` and review requests there (see
+[How organizations get listed](#how-organizations-get-listed)). Directory
+deletion is permanent: it deletes the record, scoped admins and related
+records; deleting an ambulance provider also removes its links from
+facilities. Verify the selection before confirming. Superadmin accounts
+remain CLI-provisioned; do not share Droplet access for routine approvals.
+Superadmin accounts use a separate login token and cannot use
+facility/provider admin endpoints.
 
-Then sign in at `/superadmin` and review requests there. The dashboard also
-shows and lets you edit every facility and ambulance-provider directory
-record, shows active organization-admin accounts and audited changes, and can
-revoke organization-admin access. Directory deletion is permanent: it deletes
-the record, scoped admins, pending access requests, and related records;
-deleting an ambulance provider also removes its links from facilities. Verify
-the selection before confirming. Superadmin accounts remain CLI-provisioned;
-do not share Droplet access for routine approvals. Superadmin accounts use a
-separate login token and cannot use facility/provider admin endpoints.
+### Sending login details
+
+The app sends no email. The login message for each new account or
+lost-password reset is shown once in the superadmin dashboard and sent by the superadmin to the
+organization's email address. Use **Open in email app**, or **Copy message**
+and paste it into webmail. Send it from a mailbox the organization will
+recognise, such as <info@findcareghana.com>.
+
+The sign-in link in the message uses `MEDIFINDER_PUBLIC_URL`, which defaults
+to `https://$DOMAIN`.
 
 The seed command creates only the two demo organization-admin accounts; never
 use `python -m app.seed --reset` on production data because it drops and
@@ -193,9 +284,20 @@ Useful commands, run from the cloned repository:
 
 ```bash
 docker compose logs -f app       # application logs
-docker compose up -d --build     # deploy updated application code
+git pull --ff-only origin main   # fetch the latest main branch
+docker compose up -d --build app # rebuild and reload only the app
 docker compose down              # stop services; database volume is retained
 ```
+
+After an update, confirm the app is running with `docker compose ps`, inspect
+startup errors with `docker compose logs --tail=50 app`, and check
+`https://your-domain/api/v1/health`. Do not run the seed reset command to
+deploy code. On startup the app creates new tables and adds new columns to
+existing ones (see `ensure_schema()` in `database.py`). Existing facilities
+default to the `hospital` category, so recategorize clinics and pharmacies in
+the superadmin dashboard. Existing listings stay visible. The old
+`admin_registration_requests` table is left in place and is no longer used;
+any requests still pending in it must be resubmitted through Contact us.
 
 The `postgres_data` volume persists records across container restarts and
 deployments. Back it up before destructive operations. **When you are ready to
@@ -217,6 +319,7 @@ SQLAlchemy `create_all` only creates missing tables.
 | `MEDIFINDER_CORS_ORIGINS` | `*` | Comma-separated origins |
 | `MEDIFINDER_RATE_LIMIT` | `120` | Requests per minute per IP |
 | `MEDIFINDER_DATA_VERIFIED` | `false` | Set true only after §7.3 verification |
+| `MEDIFINDER_PUBLIC_URL` | `https://$DOMAIN` | Base of the sign-in link in login messages; see [Sending login details](#sending-login-details) |
 
 ---
 
@@ -232,21 +335,27 @@ backend/
     schemas.py      request/response contracts
     presenters.py   ORM → JSON, including the 24-hour staleness rule
     security.py     bcrypt + JWT (8-hour expiry)
-    superadmins.py  CLI provisioning of superadmin accounts
+    superadmins.py  CLI provisioning of superadmin accounts (generated passwords)
     ratelimit.py    sliding-window limiter; emergency route exempt
-    reference.py    16 regions, classifications, service catalogue
+    reference.py    regions, classifications, categories, organization types
     seed.py         seed data (placeholder phone numbers)
-    admin_requests.py review pending administrator access requests
-    routers/        facilities, ambulance, emergency, reference, admin
+    routers/        facilities, ambulance, emergency, reference, contact,
+                    admin, superadmin
   tests/test_api.py
 frontend/
   index.html        search + emergency mode
   facility.html     facility profile
   ambulance.html    ambulance directory + provider detail
-  admin.html        admin dashboard v1
+  contact.html      Contact us -- how organizations ask to be listed
+  admin.html        organization dashboard, incl. advanced settings
+  superadmin.html   system management
+  images/           FindCare Ghana logo and icons
   css/styles.css    mobile-first, no web fonts
-  js/               api, ui, home, facility, ambulance, admin
+  js/               api, ui, home, facility, ambulance, contact, admin, superadmin
   manifest.json     PWA manifest (offline caching is Phase 3)
+docs/
+  FindCare-Ghana-How-Access-Works.pdf  plain-language guide for staff
+  build_access_guide.py                regenerates the PDF (needs reportlab)
 ```
 
 ---
@@ -257,7 +366,7 @@ All endpoints under `/api/v1`, JSON only, paginated, rate limited.
 
 | Method | Endpoint | Notes |
 | --- | --- | --- |
-| GET | `/facilities` | Filters: region, city, town, type, classification, service (repeatable), insurance, is_24_hour, has_ambulance, q |
+| GET | `/facilities` | Filters: region, city, town, type, category, classification, service (repeatable), insurance, is_24_hour, has_ambulance, q. Listings without a confirmed location are omitted |
 | GET | `/facilities/nearby` | `lat`, `lng`, `radius_km`; sorted by distance |
 | GET | `/facilities/search` | Free text; accepts optional `lat`/`lng` to sort by distance |
 | GET | `/facilities/{id}` | Full profile |
@@ -266,11 +375,15 @@ All endpoints under `/api/v1`, JSON only, paginated, rate limited.
 | GET | `/ambulance/covering` | Providers whose **coverage** includes a coordinate |
 | GET | `/emergency` | Facilities + ambulances + 112 in one call; never rate limited |
 | GET | `/regions`, `/services`, `/insurance`, `/classifications`, `/enums` | Reference data |
-| POST | `/admin/login` | Returns an 8-hour JWT |
-| POST | `/admin/register` | Submits a pending request; superadmin approval required |
+| POST | `/contact` | Public contact form; creates a pending request, grants nothing |
+| POST | `/admin/login` | Returns an 8-hour JWT and `must_change_password` |
+| POST | `/admin/password` | Admin changes their own password (current + new); the only write allowed before the default password is replaced |
+| PUT | `/admin/location` | Set the organization's own lat/lng (must be in Ghana); makes it publicly listed |
 | POST | `/superadmin/login` | Returns a superadmin-only 8-hour JWT |
-| GET | `/superadmin/overview` | Superadmin-only directory, requests, admins, and audit history |
-| POST | `/superadmin/requests/{id}/approve`, `/reject` | Superadmin-only access decisions |
+| GET | `/superadmin/overview` | Superadmin-only directory, contact requests, admins, and audit history |
+| POST | `/superadmin/organizations` | Create a listing + admin login (optionally approving a contact request); returns the default password (`temporary_password`) and a ready-to-send `message` for the superadmin to email |
+| POST | `/superadmin/admins/{id}/reset-password` | Lost password: replaces it with a new default password (old one stops working) and returns the message the same way |
+| POST | `/superadmin/contact-requests/{id}/reject` | Reject a contact request |
 | DELETE | `/superadmin/admins/{id}` | Superadmin-only organization-admin revocation |
 | PUT | `/superadmin/facilities/{id}` | Superadmin-only facility edit; includes services, insurance, beds, and verification |
 | DELETE | `/superadmin/facilities/{id}` | Permanently deletes a facility and its related records |
@@ -280,6 +393,9 @@ All endpoints under `/api/v1`, JSON only, paginated, rate limited.
 | PUT | `/facilities/{id}/beds` | Facility admin only |
 | PUT | `/facilities/{id}/services` | Facility admin only |
 | PUT | `/ambulance/providers/{id}/status` | Provider admin only |
+
+Every organization-admin endpoint except `/admin/me` and `/admin/password`
+returns 403 until the default password has been changed.
 
 ---
 

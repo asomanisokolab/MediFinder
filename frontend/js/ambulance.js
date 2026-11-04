@@ -25,7 +25,7 @@ async function renderDetail(id) {
 
   try {
     const p = await api(`/ambulance/providers/${encodeURIComponent(id)}`, Location.cached() || {});
-    document.title = `${p.name} — MediFinder Ghana`;
+    document.title = `${p.name} — FindCare Ghana`;
     const mount = clear(view.detail);
 
     mount.appendChild(el('p', { style: 'margin:16px 0 0' }, [
@@ -70,7 +70,7 @@ async function renderDetail(id) {
         class: 'disclaimer',
         style: 'margin-top:16px',
         text:
-          'MediFinder places the call. It does not dispatch an ambulance. ' +
+          'FindCare places the call. It does not dispatch an ambulance. ' +
           'If no one answers, call 112.',
       })
     );

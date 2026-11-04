@@ -28,6 +28,15 @@ class Settings:
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRE_HOURS: int = 8
 
+    # --- organization login messages -------------------------------------
+    # The app sends no email. The superadmin sends each login message from
+    # their own mailbox, using the text the dashboard prepares.
+    # Contact address given in that message and in the site footer.
+    SUPPORT_EMAIL: str = "info@findcareghana.com"
+    # Base URL used in the sign-in link, e.g. https://findcareghana.com.
+    # Falls back to the URL of the incoming request.
+    PUBLIC_URL: str = os.getenv("MEDIFINDER_PUBLIC_URL", "").rstrip("/")
+
     # --- api ------------------------------------------------------------
     API_PREFIX: str = "/api/v1"
     CORS_ORIGINS: list = os.getenv("MEDIFINDER_CORS_ORIGINS", "*").split(",")

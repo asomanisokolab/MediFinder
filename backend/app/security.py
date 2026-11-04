@@ -1,4 +1,5 @@
 """Password hashing and JWT auth (PRD 8: bcrypt, JWT expiring in 8 hours)."""
+import secrets
 from datetime import datetime, timedelta, timezone
 
 import bcrypt
@@ -22,6 +23,11 @@ def hash_password(password: str) -> str:
     if len(raw) > MAX_PASSWORD_BYTES:
         raise ValueError("password exceeds 72 bytes")
     return bcrypt.hashpw(raw, bcrypt.gensalt()).decode("utf-8")
+
+
+def generate_password() -> str:
+    """Random password for new accounts: 24 URL-safe characters (~144 bits)."""
+    return secrets.token_urlsafe(18)
 
 
 def verify_password(password: str, password_hash: str) -> bool:
@@ -73,10 +79,12 @@ def _unauthorised(detail: str = "Not authenticated") -> HTTPException:
     )
 
 
-def get_current_admin(
+def get_admin_with_temporary_password(
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
     db: Session = Depends(get_db),
 ) -> Admin:
+    """Any signed-in admin, including one still on the default password.
+    Only for "who am I" and "change password"."""
     if credentials is None:
         raise _unauthorised()
     try:
@@ -98,6 +106,15 @@ def get_current_admin(
     admin = db.get(Admin, int(payload.get("sub", 0)))
     if admin is None:
         raise _unauthorised("Unknown account")
+    return admin
+
+
+def get_current_admin(admin: Admin = Depends(get_admin_with_temporary_password)) -> Admin:
+    if admin.must_change_password:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Change your default password before continuing.",
+        )
     return admin
 
 

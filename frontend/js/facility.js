@@ -18,13 +18,7 @@ function render(facility) {
     el('p', { class: 'lede', text: placeLine(facility.address, facility.region) }),
   ];
 
-  const badges = [
-    el('li', { class: 'chip', text: facility.classification }),
-    el('li', {
-      class: 'chip grey',
-      text: facility.type === 'government' ? 'Government' : 'Private',
-    }),
-  ];
+  const badges = facilityKindChips(facility);
   if (facility.is_24_hour) badges.push(el('li', { class: 'chip green', text: 'Open 24 hours' }));
   badges.push(...verificationChips(facility));
   if (facility.distance_km !== null && facility.distance_km !== undefined) {
@@ -52,7 +46,7 @@ function render(facility) {
 
   /* beds -- PRD 5.1.3 and 7.3 */
   const beds = facility.beds || { display: 'Not updated', is_stale: true };
-  mount.appendChild(
+  if (isHealthFacility(facility)) mount.appendChild(
     el('section', { class: 'card' }, [
       el('h2', { style: 'margin-top:0', text: 'Bed availability' }),
       statusLine(beds),
@@ -89,7 +83,7 @@ function render(facility) {
     ambulanceBody.push(
       el('p', {
         class: 'notice',
-        text: 'MediFinder places the call. It does not dispatch an ambulance.',
+        text: 'FindCare places the call. It does not dispatch an ambulance.',
       })
     );
   } else {
@@ -173,7 +167,7 @@ function render(facility) {
   const coords = Location.cached() || {};
   try {
     const facility = await api(`/facilities/${encodeURIComponent(id)}`, coords);
-    document.title = `${facility.name} — MediFinder Ghana`;
+    document.title = `${facility.name} — FindCare Ghana`;
     render(facility);
   } catch (err) {
     showError(mount, err.message);

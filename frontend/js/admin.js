@@ -1,7 +1,12 @@
 /* Admin dashboard v1 (PRD 5.2.1, pulled into Phase 1).
 
    Facility admins update beds and service availability.
-   Ambulance provider admins update fleet status. */
+   Ambulance provider admins update fleet status.
+   Accounts are created by a superadmin with a default password, which
+   must be replaced before the dashboard opens. Advanced settings hold the
+   map location; a new listing stays out of public search until it is set. */
+
+const HEALTH_CATEGORIES = ['hospital', 'clinic'];
 
 const loginView = document.getElementById('login-view');
 const dashView = document.getElementById('dashboard-view');
@@ -56,9 +61,17 @@ async function loadDashboard() {
   dashView.hidden = false;
   showLoading(dashView, 'Loading your dashboard…');
   try {
+    const me = await api('/admin/me');
+    if (me.must_change_password) {
+      renderPasswordSetup(me);
+      return;
+    }
     const body = await api('/admin/dashboard');
-    if (body.scope === 'facility') renderFacilityDash(body.facility, body.stale_after_hours);
-    else renderProviderDash(body.provider, body.stale_after_hours);
+    if (body.scope === 'facility') {
+      renderFacilityDash(body.facility, body.stale_after_hours, body.location_confirmed);
+    } else {
+      renderProviderDash(body.provider, body.stale_after_hours, body.location_confirmed);
+    }
   } catch (err) {
     signOut();
     flash(loginMessage, err.message, 'error');
@@ -75,11 +88,190 @@ function dashHeader(title, subtitle) {
   ];
 }
 
-/* ---------- facility scope -------------------------------------------- */
-function renderFacilityDash(facility, staleHours) {
-  const mount = clear(dashView);
-  mount.append(...dashHeader(facility.name, `${facility.classification} · ${facility.region}`));
+function numberField(id, label, value, min, max) {
+  return el('div', { class: 'field' }, [
+    el('label', { for: id, text: label }),
+    el('input', {
+      type: 'number', id, min, max, step: 'any', required: true,
+      value: value !== null && value !== undefined ? value : '',
+    }),
+  ]);
+}
 
+/* ---------- password -------------------------------------------------- */
+function passwordForm({ title, submitLabel, onDone }) {
+  const message = el('div');
+  const passwordField = (id, label, autocomplete, minlength) =>
+    el('div', { class: 'field' }, [
+      el('label', { for: id, text: label }),
+      el('input', { type: 'password', id, autocomplete, required: true, minlength, maxlength: '72' }),
+    ]);
+
+  const form = el('form', { class: 'card', style: 'max-width:420px' }, [
+    el('h2', { style: 'margin-top:0', text: title }),
+    passwordField('current_password', 'Current password', 'current-password', '8'),
+    passwordField('new_password', 'New password (at least 12 characters)', 'new-password', '12'),
+    passwordField('confirm_password', 'Confirm new password', 'new-password', '12'),
+    message,
+    el('button', { type: 'submit' }, submitLabel),
+  ]);
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const next = document.getElementById('new_password').value;
+    if (next !== document.getElementById('confirm_password').value) {
+      flash(message, 'The new passwords do not match.', 'error');
+      return;
+    }
+    try {
+      await api('/admin/password', {}, {
+        method: 'POST',
+        body: { current_password: document.getElementById('current_password').value, new_password: next },
+      });
+      form.reset();
+      onDone(message);
+    } catch (err) {
+      flash(message, err.message, 'error');
+    }
+  });
+  return form;
+}
+
+function renderPasswordSetup(me) {
+  const mount = clear(dashView);
+  mount.append(...dashHeader('Choose your password', `Signed in as ${me.email}`));
+  mount.appendChild(el('p', {
+    class: 'notice',
+    text: 'You signed in with the default password from your welcome email. Choose your own password to open your dashboard.',
+  }));
+  mount.appendChild(passwordForm({
+    title: 'Set a new password',
+    submitLabel: 'Save password and continue',
+    onDone: () => loadDashboard(),
+  }));
+}
+
+/* ---------- advanced settings ----------------------------------------- */
+function deviceLocation() {
+  return new Promise((resolve, reject) => {
+    if (!('geolocation' in navigator)) {
+      reject(new Error('This device cannot share its location. Enter the coordinates by hand.'));
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (position) => resolve({
+        lat: Number(position.coords.latitude.toFixed(6)),
+        lng: Number(position.coords.longitude.toFixed(6)),
+        accuracy: Math.round(position.coords.accuracy),
+      }),
+      () => reject(new Error('Could not get this device\'s location. Allow location access, or enter the coordinates by hand.')),
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+    );
+  });
+}
+
+function locationBanner(locationConfirmed) {
+  if (locationConfirmed) return null;
+  return el('div', { class: 'banner warn', role: 'note' }, [
+    el('strong', { text: 'Set your map location' }),
+    el('span', {
+      text: 'Your listing is hidden from public search until you set its location in Advanced settings below.',
+    }),
+  ]);
+}
+
+function advancedSettings(record, locationConfirmed) {
+  const message = el('div');
+  const latField = numberField('location_lat', 'Latitude', locationConfirmed ? record.lat : '', '-90', '90');
+  const lngField = numberField('location_lng', 'Longitude', locationConfirmed ? record.lng : '', '-180', '180');
+  const lat = latField.querySelector('input');
+  const lng = lngField.querySelector('input');
+  const mapLink = el('a', { target: '_blank', rel: 'noopener' }, 'Check this point on a map');
+  const syncMapLink = () => {
+    mapLink.hidden = !lat.value || !lng.value;
+    mapLink.href = `https://www.google.com/maps/search/?api=1&query=${lat.value},${lng.value}`;
+  };
+  lat.addEventListener('input', syncMapLink);
+  lng.addEventListener('input', syncMapLink);
+  syncMapLink();
+
+  const locate = el('button', { type: 'button', class: 'secondary' }, 'Use this device\'s location');
+  locate.addEventListener('click', async () => {
+    locate.disabled = true;
+    flash(message, 'Finding your location…');
+    try {
+      const coords = await deviceLocation();
+      lat.value = coords.lat;
+      lng.value = coords.lng;
+      syncMapLink();
+      flash(message, `Location found (accurate to about ${coords.accuracy} m). Check it on the map, then save.`);
+    } catch (err) {
+      flash(message, err.message, 'error');
+    } finally {
+      locate.disabled = false;
+    }
+  });
+
+  const form = el('form', {}, [
+    el('h3', { text: 'Map location' }),
+    el('p', {
+      class: 'notice',
+      text: 'Stand at your entrance and use this device\'s location, or type the coordinates from Google Maps (right-click the spot and copy the numbers). This is the point people get directions to.',
+    }),
+    el('div', { class: 'row' }, [latField, lngField]),
+    el('p', {}, [mapLink]),
+    message,
+    el('div', { class: 'actions' }, [locate, el('button', { type: 'submit' }, 'Save location')]),
+  ]);
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    try {
+      await api('/admin/location', {}, {
+        method: 'PUT',
+        body: { lat: Number(lat.value), lng: Number(lng.value) },
+      });
+      await loadDashboard();
+    } catch (err) {
+      flash(message, err.message, 'error');
+    }
+  });
+
+  return el('details', { class: 'filters', open: !locationConfirmed }, [
+    el('summary', { text: 'Advanced settings' }),
+    el('div', { class: 'body' }, [
+      form,
+      passwordForm({
+        title: 'Change password',
+        submitLabel: 'Change password',
+        onDone: (mount) => flash(mount, 'Password changed.'),
+      }),
+    ]),
+  ]);
+}
+
+/* ---------- facility scope -------------------------------------------- */
+function renderFacilityDash(facility, staleHours, locationConfirmed) {
+  const mount = clear(dashView);
+  const subtitle = HEALTH_CATEGORIES.includes(facility.category)
+    ? `${facility.classification} · ${facility.region}`
+    : `${CATEGORY_LABEL[facility.category] || facility.category} · ${facility.region}`;
+  mount.append(...dashHeader(facility.name, subtitle));
+  const banner = locationBanner(locationConfirmed);
+  if (banner) mount.appendChild(banner);
+
+  if (HEALTH_CATEGORIES.includes(facility.category)) mount.appendChild(bedCard(facility, staleHours));
+  mount.appendChild(servicesCard(facility));
+  mount.appendChild(advancedSettings(facility, locationConfirmed));
+
+  if (locationConfirmed) {
+    mount.appendChild(
+      el('p', {}, [el('a', { href: `facility.html?id=${facility.id}` }, 'View your public profile')])
+    );
+  }
+}
+
+function bedCard(facility, staleHours) {
   const bedMessage = el('div');
   const beds = facility.beds || {};
 
@@ -129,9 +321,10 @@ function renderFacilityDash(facility, staleHours) {
       flash(bedMessage, err.message, 'error');
     }
   });
-  mount.appendChild(bedForm);
+  return bedForm;
+}
 
-  /* services */
+function servicesCard(facility) {
   const svcMessage = el('div');
   const rows = facility.service_detail.map((service) =>
     el('label', {}, [
@@ -170,19 +363,17 @@ function renderFacilityDash(facility, staleHours) {
       flash(svcMessage, err.message, 'error');
     }
   });
-  mount.appendChild(svcForm);
-
-  mount.appendChild(
-    el('p', {}, [el('a', { href: `facility.html?id=${facility.id}` }, 'View your public profile')])
-  );
+  return svcForm;
 }
 
 /* ---------- provider scope -------------------------------------------- */
-function renderProviderDash(provider, staleHours) {
+function renderProviderDash(provider, staleHours, locationConfirmed) {
   const mount = clear(dashView);
   mount.append(
     ...dashHeader(provider.name, `${provider.service_level} · ${provider.region}`)
   );
+  const banner = locationBanner(locationConfirmed);
+  if (banner) mount.appendChild(banner);
 
   const message = el('div');
   const status = provider.status || {};
@@ -248,9 +439,13 @@ function renderProviderDash(provider, staleHours) {
     ])
   );
 
-  mount.appendChild(
-    el('p', {}, [el('a', { href: `ambulance.html?id=${provider.id}` }, 'View your public listing')])
-  );
+  mount.appendChild(advancedSettings(provider, locationConfirmed));
+
+  if (locationConfirmed) {
+    mount.appendChild(
+      el('p', {}, [el('a', { href: `ambulance.html?id=${provider.id}` }, 'View your public listing')])
+    );
+  }
 }
 
 /* ---------- init ------------------------------------------------------ */

@@ -6,7 +6,7 @@ natively, so nothing here is needed after the swap -- see geo.py.
 """
 import math
 
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from .config import settings
@@ -52,6 +52,40 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, futu
 
 class Base(DeclarativeBase):
     pass
+
+
+# Columns added after tables already existed in production. create_all()
+# only creates missing tables, so these are added in place on startup.
+# (table, column, type and default) -- defaults keep existing rows valid.
+_ADDED_COLUMNS = [
+    ("facilities", "category", "VARCHAR(30) NOT NULL DEFAULT 'hospital'"),
+    ("facilities", "location_confirmed", "BOOLEAN NOT NULL DEFAULT TRUE"),
+    ("ambulance_providers", "location_confirmed", "BOOLEAN NOT NULL DEFAULT TRUE"),
+    ("admins", "must_change_password", "BOOLEAN NOT NULL DEFAULT FALSE"),
+]
+
+# Tables no longer in the models. Only dropped by the destructive seed
+# commands, because their foreign keys would otherwise block drop_all().
+LEGACY_TABLES = ("admin_registration_requests",)
+
+
+def ensure_schema() -> None:
+    """Create missing tables and add missing columns. Safe to run repeatedly."""
+    from . import models  # noqa: F401  -- registers every table on Base
+
+    Base.metadata.create_all(bind=engine)
+    inspector = inspect(engine)
+    with engine.begin() as conn:
+        for table, column, ddl in _ADDED_COLUMNS:
+            existing = {c["name"] for c in inspector.get_columns(table)}
+            if column not in existing:
+                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}"))
+
+
+def drop_legacy_tables() -> None:
+    with engine.begin() as conn:
+        for table in LEGACY_TABLES:
+            conn.execute(text(f"DROP TABLE IF EXISTS {table}"))
 
 
 def get_db():

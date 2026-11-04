@@ -103,6 +103,44 @@ REGION_CENTROIDS = {
     "Western North": (6.20, -2.80),
 }
 
+# Rough bounding box for Ghana, with a margin. Catches the common mistake of
+# swapping latitude and longitude when an organization sets its location.
+GHANA_BOUNDS = {"min_lat": 4.0, "max_lat": 11.5, "min_lng": -3.6, "max_lng": 1.6}
+
+
+def in_ghana(lat: float, lng: float) -> bool:
+    return (
+        GHANA_BOUNDS["min_lat"] <= lat <= GHANA_BOUNDS["max_lat"]
+        and GHANA_BOUNDS["min_lng"] <= lng <= GHANA_BOUNDS["max_lng"]
+    )
+
+
+# What kind of place a Facility row is. Ambulance services are not here:
+# they are AmbulanceProvider rows (PRD v1.1 5.1.6).
+FACILITY_CATEGORIES = ["hospital", "clinic", "pharmacy", "hearse", "caregiver"]
+# Only these take a GHS classification and appear in emergency mode -- a
+# hearse or a pharmacy is not where to send someone in trouble.
+HEALTH_FACILITY_CATEGORIES = ("hospital", "clinic")
+UNCLASSIFIED = "Not classified"
+
+# Choices on the public contact form. Each maps to a Facility category and
+# default ownership, or to an AmbulanceProvider when category is None.
+ORGANIZATION_TYPES = {
+    "hospital_government": {
+        "label": "Hospital (government)", "category": "hospital", "ownership": "government",
+    },
+    "hospital_private": {
+        "label": "Hospital (private)", "category": "hospital", "ownership": "private",
+    },
+    "clinic": {"label": "Clinic", "category": "clinic", "ownership": "private"},
+    "pharmacy": {
+        "label": "Pharmacy / medical store", "category": "pharmacy", "ownership": "private",
+    },
+    "ambulance": {"label": "Ambulance service", "category": None, "ownership": "private"},
+    "hearse": {"label": "Hearse service", "category": "hearse", "ownership": "private"},
+    "caregiver": {"label": "Caregiver", "category": "caregiver", "ownership": "private"},
+}
+
 FACILITY_TYPES = ["government", "private"]
 OPERATOR_TYPES = ["government", "private", "facility_attached"]
 SERVICE_LEVELS = ["BLS", "ALS"]

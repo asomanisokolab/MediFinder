@@ -22,7 +22,7 @@ import sys
 
 from sqlalchemy import select
 
-from .database import Base, SessionLocal, engine
+from .database import Base, SessionLocal, drop_legacy_tables, engine, ensure_schema
 from .models import (
     Admin,
     AmbulanceCoverage,
@@ -215,6 +215,7 @@ PRIVATE_MIX = ["NHIS", "Acacia", "Enterprise", "Metropolitan", "Phoenix", "GLICO
 
 
 def reset_schema() -> None:
+    drop_legacy_tables()
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
 
@@ -223,7 +224,7 @@ def seed(reset: bool = False) -> None:
     if reset:
         reset_schema()
     else:
-        Base.metadata.create_all(bind=engine)
+        ensure_schema()
 
     db = SessionLocal()
     try:
@@ -268,9 +269,13 @@ def seed(reset: bool = False) -> None:
         for i, (name, ftype, level, region, city, lat, lng, is24, has_amb, extra) in enumerate(
             FACILITIES, start=1
         ):
+            is_clinic = level in ("Level D", "Level E", "Level F") or any(
+                word in name for word in ("Clinic", "Dental", "Polyclinic")
+            )
             facility = Facility(
                 name=name,
                 type=ftype,
+                category="clinic" if is_clinic else "hospital",
                 classification=level,
                 address=f"{city}, {region}",
                 region=region,
@@ -357,13 +362,12 @@ def seed(reset: bool = False) -> None:
 
 
 def clear_database() -> None:
-    Base.metadata.drop_all(bind=engine)
-    Base.metadata.create_all(bind=engine)
+    reset_schema()
     print("Cleared all application data. The database is empty and ready for real data.")
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Seed the MediFinder database.")
+    parser = argparse.ArgumentParser(description="Seed the FindCare database.")
     actions = parser.add_mutually_exclusive_group()
     actions.add_argument(
         "--reset", action="store_true", help="Drop, rebuild, and seed all tables"

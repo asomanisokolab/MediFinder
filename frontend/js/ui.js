@@ -9,6 +9,32 @@ const COST_LABEL = {
   premium: 'Premium cost',
 };
 
+const CATEGORY_LABEL = {
+  hospital: 'Hospital',
+  clinic: 'Clinic',
+  pharmacy: 'Pharmacy / medical store',
+  hearse: 'Hearse service',
+  caregiver: 'Caregiver',
+};
+
+/* Beds and GHS levels only mean something for hospitals and clinics. */
+function isHealthFacility(facility) {
+  return facility.category === 'hospital' || facility.category === 'clinic';
+}
+
+/* Category, then GHS level where one applies, then ownership. */
+function facilityKindChips(facility) {
+  const chips = [el('li', { class: 'chip', text: CATEGORY_LABEL[facility.category] || facility.category })];
+  if (isHealthFacility(facility)) {
+    chips.push(el('li', { class: 'chip', text: facility.classification }));
+  }
+  chips.push(el('li', {
+    class: 'chip grey',
+    text: facility.type === 'government' ? 'Government' : 'Private',
+  }));
+  return chips;
+}
+
 /* PRD 7.1: while the dataset is unverified, say so on every screen. */
 async function renderDataBanner(target) {
   const mount = typeof target === 'string' ? document.getElementById(target) : target;
@@ -58,13 +84,7 @@ function statusLine(status) {
 
 /* ---------- facility card -------------------------------------------- */
 function facilityCard(facility, { showServices = true } = {}) {
-  const chips = [
-    el('li', { class: 'chip', text: facility.classification }),
-    el('li', {
-      class: 'chip grey',
-      text: facility.type === 'government' ? 'Government' : 'Private',
-    }),
-  ];
+  const chips = facilityKindChips(facility);
   if (facility.is_24_hour) chips.push(el('li', { class: 'chip green', text: 'Open 24 hours' }));
   if (facility.has_ambulance) chips.push(el('li', { class: 'chip red', text: 'Has ambulance' }));
   if (showServices && facility.services && facility.services.includes('Dental')) {
@@ -105,7 +125,7 @@ function facilityCard(facility, { showServices = true } = {}) {
         : null,
     ]),
     el('ul', { class: 'chips' }, chips),
-    statusLine(facility.beds),
+    isHealthFacility(facility) ? statusLine(facility.beds) : null,
     el('div', { class: 'actions' }, actions),
   ]);
 }

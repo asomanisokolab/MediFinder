@@ -6,6 +6,22 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 T = TypeVar("T")
 InsuranceName = Annotated[str, Field(min_length=1, max_length=80)]
+# Deliberately not EmailStr: login must accept whatever address the account
+# was created with, so every email field shares this looser check.
+Email = Annotated[
+    str, Field(min_length=3, max_length=160, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+]
+FacilityCategory = Literal["hospital", "clinic", "pharmacy", "hearse", "caregiver"]
+# Keys of reference.ORGANIZATION_TYPES.
+OrganizationType = Literal[
+    "hospital_government",
+    "hospital_private",
+    "clinic",
+    "pharmacy",
+    "ambulance",
+    "hearse",
+    "caregiver",
+]
 
 
 # --------------------------------------------------------------------------
@@ -60,6 +76,7 @@ class FacilitySummary(BaseModel):
     id: int
     name: str
     type: str
+    category: str
     classification: str
     region: str
     city: str
@@ -141,24 +158,29 @@ class ClassificationOut(BaseModel):
 # admin
 # --------------------------------------------------------------------------
 class LoginIn(BaseModel):
-    # Deliberately not EmailStr: login must accept whatever address the
-    # account was created with. Strict deliverability checks belong at
-    # registration, not at the door.
-    email: str = Field(min_length=3, max_length=160, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+    email: Email
     password: str = Field(min_length=8, max_length=72)
 
 
-class AdminRegistrationIn(BaseModel):
-    full_name: str = Field(min_length=2, max_length=120)
-    email: str = Field(
-        min_length=3,
-        max_length=160,
-        pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$",
-    )
-    password: str = Field(min_length=12, max_length=72)
-    scope: Literal["facility", "provider"]
-    facility_id: int | None = Field(default=None, gt=0)
-    provider_id: int | None = Field(default=None, gt=0)
+class ContactRequestIn(BaseModel):
+    """Public contact form: an organization asking to be listed."""
+
+    facility_name: str = Field(min_length=2, max_length=200)
+    organization_type: OrganizationType
+    email: Email
+    phone: str = Field(min_length=7, max_length=40, pattern=r"^\+?[0-9 ()-]{7,40}$")
+    contact_name: str = Field(default="", max_length=120)
+    message: str = Field(default="", max_length=1000)
+
+
+class PasswordChangeIn(BaseModel):
+    current_password: str = Field(min_length=8, max_length=72)
+    new_password: str = Field(min_length=12, max_length=72)
+
+
+class LocationIn(BaseModel):
+    lat: float = Field(ge=-90, le=90)
+    lng: float = Field(ge=-180, le=180)
 
 
 class TokenOut(BaseModel):
@@ -168,6 +190,7 @@ class TokenOut(BaseModel):
     scope: Literal["facility", "provider"]
     facility_id: int | None = None
     provider_id: int | None = None
+    must_change_password: bool = False
 
 
 class AdminMeOut(BaseModel):
@@ -179,6 +202,7 @@ class AdminMeOut(BaseModel):
     provider_id: int | None = None
     facility_name: str | None = None
     provider_name: str | None = None
+    must_change_password: bool = False
 
 
 class BedUpdateIn(BaseModel):
@@ -205,9 +229,32 @@ class CoverageIn(BaseModel):
     district: str = Field(default="", max_length=80)
 
 
+class OrganizationCreateIn(BaseModel):
+    """Superadmin creates a listing plus its admin login, usually from a
+    contact request. Leaving lat/lng blank lets the organization set its own
+    position after signing in."""
+
+    contact_request_id: int | None = Field(default=None, gt=0)
+    organization_type: OrganizationType
+    name: str = Field(min_length=1, max_length=200)
+    email: Email
+    full_name: str = Field(default="", max_length=120)
+    phone: str = Field(min_length=1, max_length=40)
+    # Ignored for hospital types, whose ownership is part of the type.
+    ownership: Literal["government", "private"] | None = None
+    # Required for hospitals and clinics; ignored for other categories.
+    classification: str = Field(default="", max_length=40)
+    region: str = Field(min_length=1, max_length=60)
+    city: str = Field(default="", max_length=80)
+    address: str = Field(default="", max_length=300)
+    lat: float | None = Field(default=None, ge=-90, le=90)
+    lng: float | None = Field(default=None, ge=-180, le=180)
+
+
 class SuperadminFacilityUpdateIn(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     type: Literal["government", "private"]
+    category: FacilityCategory
     classification: str = Field(min_length=1, max_length=40)
     address: str = Field(default="", max_length=300)
     region: str = Field(min_length=1, max_length=60)

@@ -1,4 +1,4 @@
-/* MediFinder Ghana -- mobile first, 360px up (PRD 8).
+/* FindCare Ghana -- mobile first, 360px up (PRD 8).
    No web fonts, no framework: every byte here is on the critical path for
    a user on a limited data bundle. */
 
@@ -54,9 +54,9 @@ header.site a.brand {
   display: flex; align-items: center; gap: 8px;
 }
 header.site .brand-logo {
-  display: block; width: 108px; height: 32px; object-fit: contain;
-  padding: 2px 4px; background: #fff; border-radius: 5px;
+  display: block; width: 192px; height: 42px; object-fit: contain;
 }
+header.site .brand-context { font-size: 13px; font-weight: 500; }
 header.site nav { margin-left: auto; display: flex; gap: 4px; }
 header.site nav a {
   color: #fff; text-decoration: none; font-size: 14px; padding: 10px 10px;
@@ -109,7 +109,7 @@ p.lede { color: var(--ink-soft); margin: 0 0 16px; }
 /* ---------- forms ---------- */
 .field { margin-bottom: 12px; }
 label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 4px; }
-input[type="text"], input[type="email"], input[type="password"], input[type="number"], select {
+input[type="text"], input[type="email"], input[type="tel"], input[type="password"], input[type="number"], select {
   width: 100%; min-height: var(--tap); padding: 10px 12px;
   border: 1px solid var(--line); border-radius: 8px;
   font-size: 16px; font-family: inherit; background: #fff; color: var(--ink);
@@ -207,6 +207,11 @@ details.filters .body { padding: 0 14px 14px; border-top: 1px solid var(--line);
   padding: 12px 14px; border-radius: var(--radius); margin: 12px 0; font-size: 14px;
 }
 .admin-section { margin: 24px 0; }
+.secret {
+  display: inline-block; margin: 4px 0; padding: 4px 8px; font-size: 15px;
+  font-family: ui-monospace, Consolas, monospace; background: #fff;
+  border: 1px solid var(--line); border-radius: 4px; user-select: all;
+}
 .table-scroll { overflow-x: auto; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); }
 .admin-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .admin-table th, .admin-table td { text-align: left; vertical-align: top; padding: 9px 10px; border-bottom: 1px solid var(--line); }
@@ -247,10 +252,23 @@ footer.site {
   border-top: 1px solid var(--line); margin-top: 32px; padding-top: 16px;
   font-size: 13px; color: var(--ink-soft);
 }
+.footer-contact {
+  display: flex; flex-wrap: wrap; gap: 6px 16px;
+  margin: 0 0 8px; padding: 0; list-style: none; font-size: 14px;
+}
+.footer-contact a { color: var(--blue-dark); }
 
 @media (min-width: 620px) {
   h1 { font-size: 26px; }
   .wrap { padding: 0 20px 64px; }
+}
+
+@media (max-width: 420px) {
+  header.site .brand-logo { width: 148px; height: 34px; }
+  header.site .brand-context { display: none; }
+  header.site .wrap { gap: 8px; }
+  header.site nav { gap: 0; }
+  header.site nav a { font-size: 12px; padding-right: 5px; padding-left: 5px; }
 }
 
 @media (prefers-reduced-motion: no-preference) {

@@ -30,6 +30,8 @@ class Facility(Base):
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     # "government" | "private"  (PRD 5.1.1)
     type: Mapped[str] = mapped_column(String(20), nullable=False)
+    # reference.FACILITY_CATEGORIES: hospital, clinic, pharmacy, hearse, caregiver
+    category: Mapped[str] = mapped_column(String(30), nullable=False, default="hospital")
     # Level A..F | Private       (PRD 5.1.5)
     classification: Mapped[str] = mapped_column(String(40), nullable=False)
     address: Mapped[str] = mapped_column(String(300), default="")
@@ -38,6 +40,10 @@ class Facility(Base):
     town: Mapped[str] = mapped_column(String(80), default="")
     lat: Mapped[float] = mapped_column(Float, nullable=False)
     lng: Mapped[float] = mapped_column(Float, nullable=False)
+    # False while lat/lng is only the region centroid placeholder. Such
+    # records stay out of public listings until the organization sets its
+    # real position, so distance results are never invented.
+    location_confirmed: Mapped[bool] = mapped_column(Boolean, default=True)
     phone: Mapped[str] = mapped_column(String(40), default="")
     hours: Mapped[str] = mapped_column(String(120), default="")
     is_24_hour: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -162,6 +168,8 @@ class AmbulanceProvider(Base):
     district: Mapped[str] = mapped_column(String(80), default="")
     lat: Mapped[float] = mapped_column(Float, nullable=False)
     lng: Mapped[float] = mapped_column(Float, nullable=False)
+    # See Facility.location_confirmed.
+    location_confirmed: Mapped[bool] = mapped_column(Boolean, default=True)
     phone: Mapped[str] = mapped_column(String(40), nullable=False)
     alt_phone: Mapped[str] = mapped_column(String(40), default="")
     hours: Mapped[str] = mapped_column(String(120), default="24 hours")
@@ -250,24 +258,40 @@ class Admin(Base):
     email: Mapped[str] = mapped_column(String(160), nullable=False, unique=True)
     password_hash: Mapped[str] = mapped_column(String(200), nullable=False)
     full_name: Mapped[str] = mapped_column(String(120), default="")
+    # Set when a superadmin creates the login with a default password; every admin API
+    # except "change password" refuses the account until it is cleared.
+    must_change_password: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
-class AdminRegistrationRequest(Base):
-    __tablename__ = "admin_registration_requests"
+class ContactRequest(Base):
+    """An organization asking to be listed, from the public contact form.
+
+    Unauthenticated input: it grants nothing. A superadmin verifies it and
+    then creates the listing and admin account from it.
+    """
+
+    __tablename__ = "contact_requests"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    facility_id: Mapped[int | None] = mapped_column(
-        ForeignKey("facilities.id", ondelete="CASCADE"), nullable=True
-    )
-    provider_id: Mapped[int | None] = mapped_column(
-        ForeignKey("ambulance_providers.id", ondelete="CASCADE"), nullable=True
-    )
+    facility_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    # A key of reference.ORGANIZATION_TYPES
+    organization_type: Mapped[str] = mapped_column(String(30), nullable=False)
     email: Mapped[str] = mapped_column(String(160), nullable=False)
-    password_hash: Mapped[str | None] = mapped_column(String(200), nullable=True)
-    full_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    phone: Mapped[str] = mapped_column(String(40), nullable=False)
+    contact_name: Mapped[str] = mapped_column(String(120), default="")
+    message: Mapped[str] = mapped_column(Text, default="")
+    # "pending" | "approved" | "rejected"
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    reviewed_by: Mapped[str] = mapped_column(String(160), default="")
+    facility_id: Mapped[int | None] = mapped_column(
+        ForeignKey("facilities.id", ondelete="SET NULL"), nullable=True
+    )
+    provider_id: Mapped[int | None] = mapped_column(
+        ForeignKey("ambulance_providers.id", ondelete="SET NULL"), nullable=True
+    )
 
 
 class SuperAdmin(Base):

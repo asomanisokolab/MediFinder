@@ -12,6 +12,7 @@ from ..database import get_db
 from ..geo import bounding_box, distance_km_expr, valid_coordinates
 from ..models import AmbulanceCoverage, AmbulanceProvider, Facility
 from ..presenters import ambulance_summary, facility_summary
+from ..reference import HEALTH_FACILITY_CATEGORIES
 from ..schemas import EmergencyOut
 from .ambulance import covering_providers
 
@@ -20,8 +21,15 @@ router = APIRouter(prefix="/emergency", tags=["emergency"])
 # PRD 10: the product places a call, it does not dispatch. Said plainly,
 # in the payload, so no client can quietly drop it.
 NOTICE = (
-    "MediFinder shows you providers and places the call. It does not dispatch "
+    "FindCare shows you providers and places the call. It does not dispatch "
     "an ambulance. If no one answers, call {number}."
+)
+
+# Only places that treat patients, at a confirmed location. A pharmacy or
+# hearse service is not an emergency answer.
+_EMERGENCY_FACILITIES = (
+    Facility.category.in_(HEALTH_FACILITY_CATEGORIES),
+    Facility.location_confirmed.is_(True),
 )
 
 
@@ -33,6 +41,7 @@ def _nearest_facilities(db: Session, lat: float, lng: float, limit: int) -> list
     box = [
         Facility.lat.between(min_lat, max_lat),
         Facility.lng.between(min_lng, max_lng),
+        *_EMERGENCY_FACILITIES,
     ]
 
     # Open first, then nearest. A closed facility is not an emergency answer.
@@ -95,16 +104,17 @@ def emergency(
     # GPS denied: fall back to region selection.
     facilities = db.scalars(
         select(Facility)
-        .where(func.lower(Facility.region) == region.strip().lower())
+        .where(func.lower(Facility.region) == region.strip().lower(), *_EMERGENCY_FACILITIES)
         .order_by(Facility.is_24_hour.desc(), Facility.verified.desc(), Facility.name.asc())
         .limit(limit)
     ).all()
     providers = db.scalars(
         select(AmbulanceProvider)
         .where(
+            AmbulanceProvider.location_confirmed.is_(True),
             AmbulanceProvider.coverage.any(
                 func.lower(AmbulanceCoverage.region) == region.strip().lower()
-            )
+            ),
         )
         .order_by(AmbulanceProvider.verified.desc(), AmbulanceProvider.name.asc())
         .limit(limit)

@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MediFinder Ghana — Find medical facilities and ambulances</title>
+<title>FindCare Ghana — Find medical facilities and ambulances</title>
 <meta name="description" content="Find hospitals, clinics, dental care and ambulance providers across all 16 regions of Ghana. Search by location, service and insurance.">
 <meta name="theme-color" content="#1a56db">
-<link rel="icon" type="image/png" sizes="192x192" href="/images/akaditi-icon.png">
-<link rel="apple-touch-icon" href="/images/akaditi-icon.png">
+<link rel="icon" type="image/svg+xml" href="/images/findcareghana-icon.svg">
+<link rel="apple-touch-icon" href="/images/findcareghana-icon-180.png">
 <link rel="manifest" href="manifest.json">
 <link rel="stylesheet" href="css/styles.css">
 </head>
@@ -16,10 +16,11 @@
 
 <header class="site">
   <div class="wrap">
-    <a class="brand" href="index.html"><img class="brand-logo" src="/images/akaditi.jpg" alt="Akaditi">MediFinder Ghana</a>
+    <a class="brand" href="index.html"><img class="brand-logo" src="/images/findcareghana-logo.svg" alt="FindCare Ghana"></a>
     <nav aria-label="Main">
       <a href="index.html">Find care</a>
       <a href="ambulance.html">Ambulance</a>
+      <a href="contact.html">Contact us</a>
     </nav>
   </div>
 </header>
@@ -42,6 +43,18 @@
     <div class="field">
       <label for="q">Facility name, town or city</label>
       <input type="text" id="q" name="q" autocomplete="off" placeholder="e.g. Korle Bu, Tamale, Ho">
+    </div>
+
+    <div class="field">
+      <label for="category">Looking for</label>
+      <select id="category" name="category">
+        <option value="">All types of care</option>
+        <option value="hospital">Hospitals</option>
+        <option value="clinic">Clinics</option>
+        <option value="pharmacy">Pharmacies and medical stores</option>
+        <option value="hearse">Hearse services</option>
+        <option value="caregiver">Caregivers</option>
+      </select>
     </div>
 
     <div class="row">
@@ -115,7 +128,14 @@
   <div class="pager" id="pager"></div>
 
   <footer class="site">
-    <p>MediFinder Ghana · Phase 1 · Implements PRD v1.1. In a real emergency call 112.</p>
+    <ul class="footer-contact">
+      <li><a href="mailto:info@findcareghana.com">info@findcareghana.com</a></li>
+      <li><a href="https://www.instagram.com/findcaregh" target="_blank" rel="noopener">Instagram</a></li>
+      <li><a href="https://x.com/findcaregh" target="_blank" rel="noopener">X</a></li>
+      <li><a href="https://www.facebook.com/findcaregh" target="_blank" rel="noopener">Facebook</a></li>
+      <li>@findcareGh</li>
+    </ul>
+    <p>FindCare Ghana · Phase 1 · Implements PRD v1.1. In a real emergency call 112.</p>
   </footer>
 </main>
 

@@ -12,7 +12,7 @@ const QUICK_SERVICES = [
 const state = { page: 1, coords: null };
 
 const dom = {};
-['q', 'region', 'city', 'service-other', 'insurance', 'classification', 'type', 'is24',
+['q', 'category', 'region', 'city', 'service-other', 'insurance', 'classification', 'type', 'is24',
  'hasamb', 'results', 'results-count', 'results-title', 'pager', 'emergency-btn',
  'emergency-panel', 'locate-btn', 'locate-status', 'search-form', 'service-checks',
 ].forEach((id) => {
@@ -72,6 +72,7 @@ function selectedServices() {
 function currentParams() {
   const params = {
     q: dom.q.value.trim(),
+    category: dom.category.value,
     region: dom.region.value,
     city: dom.city.value,
     insurance: dom.insurance.value,

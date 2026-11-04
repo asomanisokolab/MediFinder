@@ -18,6 +18,7 @@ def _filters(
     city: str | None,
     town: str | None,
     facility_type: str | None,
+    category: str | None,
     classification: str | None,
     services: list[str] | None,
     insurance: str | None,
@@ -26,7 +27,8 @@ def _filters(
     q: str | None,
 ):
     """Shared WHERE clauses for every facility listing (PRD 5.1.2)."""
-    conds = []
+    # A record still on its placeholder location is never listed publicly.
+    conds = [Facility.location_confirmed.is_(True)]
     if region:
         conds.append(func.lower(Facility.region) == region.strip().lower())
     if city:
@@ -35,6 +37,8 @@ def _filters(
         conds.append(func.lower(Facility.town) == town.strip().lower())
     if facility_type:
         conds.append(Facility.type == facility_type.strip().lower())
+    if category:
+        conds.append(Facility.category == category.strip().lower())
     if classification:
         conds.append(func.lower(Facility.classification) == classification.strip().lower())
     if is_24_hour is not None:
@@ -95,6 +99,7 @@ def facilities_nearby(
     city: str | None = None,
     town: str | None = None,
     facility_type: str | None = Query(None, alias="type"),
+    category: str | None = None,
     classification: str | None = None,
     services: list[str] | None = Query(None, alias="service"),
     insurance: str | None = None,
@@ -113,7 +118,7 @@ def facilities_nearby(
     dist = distance_km_expr(Facility.lat, Facility.lng, lat, lng)
 
     conds = _filters(
-        region, city, town, facility_type, classification, services,
+        region, city, town, facility_type, category, classification, services,
         insurance, is_24_hour, has_ambulance, q,
     )
     conds += [
@@ -142,6 +147,7 @@ def facilities_search(
     city: str | None = None,
     town: str | None = None,
     facility_type: str | None = Query(None, alias="type"),
+    category: str | None = None,
     classification: str | None = None,
     services: list[str] | None = Query(None, alias="service"),
     insurance: str | None = None,
@@ -159,7 +165,7 @@ def facilities_search(
     so the GPS and manual paths return the same shape.
     """
     conds = _filters(
-        region, city, town, facility_type, classification, services,
+        region, city, town, facility_type, category, classification, services,
         insurance, is_24_hour, has_ambulance, q,
     )
 
@@ -189,6 +195,7 @@ def list_facilities(
     city: str | None = None,
     town: str | None = None,
     facility_type: str | None = Query(None, alias="type"),
+    category: str | None = None,
     classification: str | None = None,
     services: list[str] | None = Query(None, alias="service"),
     insurance: str | None = None,
@@ -201,7 +208,7 @@ def list_facilities(
 ):
     """List all facilities with optional filters (PRD 6.4)."""
     conds = _filters(
-        region, city, town, facility_type, classification, services,
+        region, city, town, facility_type, category, classification, services,
         insurance, is_24_hour, has_ambulance, q,
     )
     rows, total = _paginate(

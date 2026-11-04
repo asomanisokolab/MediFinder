@@ -2,6 +2,10 @@ const loginView = document.getElementById('login-view');
 const dashboardView = document.getElementById('dashboard-view');
 const loginMessage = document.getElementById('login-message');
 const SUPERADMIN_KEY = 'mf.superadmin.token';
+const HEALTH_CATEGORIES = ['hospital', 'clinic'];
+
+/* Reference lists for the forms, loaded once per sign-in. */
+const reference = { regions: [], classifications: [], organizationTypes: [], categories: [] };
 
 const SuperAuth = {
   token() {
@@ -79,16 +83,20 @@ function editorField(name, label, value, type = 'text', options = {}) {
   ]);
 }
 
-function editorSelect(name, label, value, choices, prefix) {
+/* Choices are plain strings, or { value, label } when they differ. */
+function editorSelect(name, label, value, choices, prefix, { required = true } = {}) {
   const control = el('select', {
     id: `${prefix}-${name}`,
     name,
-    required: true,
-  }, choices.map((choice) => el('option', {
-    value: choice,
-    selected: choice === value,
-    text: choice,
-  })));
+    required,
+  }, choices.map((choice) => {
+    const option = typeof choice === 'string' ? { value: choice, label: choice } : choice;
+    return el('option', {
+      value: option.value,
+      selected: option.value === value,
+      text: option.label,
+    });
+  }));
   return el('div', { class: 'field' }, [
     el('label', { for: control.id, text: label }),
     control,
@@ -123,8 +131,9 @@ function facilityEditor(facility) {
     .join(', ');
   const form = el('form', { class: 'card editor-form' }, [
     el('h3', { text: `Edit ${facility.name}` }),
+    editorField('name', 'Name', facility.name, 'text', { prefix, required: true, maxlength: 200 }),
     el('div', { class: 'row' }, [
-      editorField('name', 'Name', facility.name, 'text', { prefix, required: true, maxlength: 200 }),
+      editorSelect('category', 'Category', facility.category, reference.categories, prefix),
       editorSelect('type', 'Ownership', facility.type, ['government', 'private'], prefix),
     ]),
     el('div', { class: 'row' }, [
@@ -216,55 +225,173 @@ function providerEditor(provider) {
   ]);
 }
 
-function renderOverview(data) {
+function typeLabel(value) {
+  const match = reference.organizationTypes.find((item) => item.value === value);
+  return match ? match.label : value;
+}
+
+/* Creates a listing and its admin login. With a contact request it is
+   prefilled from it, and saving also approves the request. */
+function organizationForm(request) {
+  const prefix = request ? `request-${request.id}` : 'new-organization';
+  const typeField = editorSelect(
+    'organization_type', 'Type', request ? request.organization_type : '',
+    [{ value: '', label: 'Choose a type' }, ...reference.organizationTypes], prefix
+  );
+  const ownershipField = editorSelect(
+    'ownership', 'Ownership', 'private', ['private', 'government'], prefix
+  );
+  const classificationField = editorSelect(
+    'classification', 'Classification', '',
+    [{ value: '', label: 'Choose a level' },
+     ...reference.classifications.map((item) => ({ value: item.level, label: `${item.level} — ${item.name}` }))],
+    prefix, { required: false }
+  );
+  const typeControl = typeField.querySelector('select');
+  const classificationControl = classificationField.querySelector('select');
+
+  /* Hospitals take their ownership from the type; only hospitals and
+     clinics are on the GHS classification scale. */
+  function syncTypeFields() {
+    const type = reference.organizationTypes.find((item) => item.value === typeControl.value);
+    const category = type ? type.category : null;
+    ownershipField.hidden = !type || category === 'hospital';
+    classificationField.hidden = !HEALTH_CATEGORIES.includes(category);
+    classificationControl.required = !classificationField.hidden;
+  }
+  typeControl.addEventListener('change', syncTypeFields);
+  syncTypeFields();
+
+  const form = el('form', { class: 'card editor-form' }, [
+    el('h3', { text: request ? `Create login for ${request.facility_name}` : 'New organization' }),
+    typeField,
+    editorField('name', 'Name', request?.facility_name, 'text', { prefix, required: true, maxlength: 200 }),
+    el('div', { class: 'row' }, [
+      editorField('email', 'Login email', request?.email, 'email', { prefix, required: true, maxlength: 160 }),
+      editorField('phone', 'Phone', request?.phone, 'text', { prefix, required: true, maxlength: 40 }),
+    ]),
+    editorField('full_name', 'Contact person', request?.contact_name, 'text', { prefix, maxlength: 120 }),
+    el('div', { class: 'row' }, [ownershipField, classificationField]),
+    el('div', { class: 'row' }, [
+      editorSelect('region', 'Region', '', [{ value: '', label: 'Choose a region' }, ...reference.regions], prefix),
+      editorField('city', 'City, town or district', '', 'text', { prefix, maxlength: 80 }),
+    ]),
+    editorField('address', 'Address', '', 'text', { prefix, maxlength: 300 }),
+    el('div', { class: 'row' }, [
+      editorField('lat', 'Latitude (optional)', '', 'number', { prefix, min: -90, max: 90, step: 'any' }),
+      editorField('lng', 'Longitude (optional)', '', 'number', { prefix, min: -180, max: 180, step: 'any' }),
+    ]),
+    el('p', {
+      class: 'notice',
+      text: 'Leave the coordinates blank to let the organization set its own location after signing in. The listing stays out of public search until a location is set.',
+    }),
+    el('button', { type: 'submit' }, 'Create login'),
+  ]);
+  form.addEventListener('submit', (event) => createOrganization(event, form, request));
+  return form;
+}
+
+/* One-time result of creating an account or resetting a lost password. The
+   app sends no email: the superadmin emails this message to the
+   organization, from their email app or by copying it. */
+function credentialsNotice(result, organizationName) {
+  const { subject, body } = result.message;
+  const status = el('span', { role: 'status' });
+  const copy = el('button', { type: 'button', class: 'secondary' }, 'Copy message');
+  copy.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(`Subject: ${subject}\n\n${body}`);
+      status.textContent = ' Copied.';
+    } catch (err) {
+      messageBox.select();
+      status.textContent = ' Select the text above and copy it.';
+    }
+  });
+  const messageBox = el('textarea', { rows: '12', readonly: true, 'aria-label': 'Login message', text: body });
+
+  return el('div', { class: 'ok', role: 'status' }, [
+    el('strong', { text: `Now email ${organizationName} their login details. ` }),
+    'This is the only time the default password is shown. They choose their own password when they first sign in. ',
+    'Default password: ',
+    el('code', { class: 'secret', text: result.temporary_password }),
+    el('p', { style: 'margin:8px 0 4px', text: `To: ${result.email} · Subject: ${subject}` }),
+    messageBox,
+    el('div', { class: 'actions' }, [
+      el('a', {
+        class: 'btn',
+        href: `mailto:${encodeURIComponent(result.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`,
+      }, 'Open in email app'),
+      copy,
+    ]),
+    status,
+  ]);
+}
+
+function renderOverview(data, notice) {
   const mount = clear(dashboardView);
   mount.appendChild(el('div', { class: 'results-head' }, [
     el('h1', { style: 'margin:0', text: 'System management' }),
     el('button', { class: 'secondary', onclick: signOut }, 'Sign out'),
   ]));
-  mount.appendChild(el('p', { class: 'lede', text: 'Review access, manage admin accounts, inspect all directory records, and audit changes made by organization administrators.' }));
+  mount.appendChild(el('p', { class: 'lede', text: 'Review contact requests, create organization logins, inspect all directory records, and audit changes made by organization administrators.' }));
+  if (notice) mount.appendChild(notice);
 
-  const requestRows = data.requests.map((request) => {
-    const approveButton = el('button', {
-      type: 'button',
-      onclick: () => decideRequest(request, 'approve'),
-      text: 'Approve',
-    });
-    const rejectButton = el('button', {
-      type: 'button',
-      class: 'secondary',
-      onclick: () => decideRequest(request, 'reject'),
-      text: 'Reject',
-    });
-    return [
-      request.id,
-      request.full_name,
-      request.email,
-      request.scope,
-      request.organization_name,
-      when(request.created_at),
-      el('div', { class: 'actions' }, [approveButton, rejectButton]),
-    ];
-  });
-  addSection(mount, `Pending access requests (${data.requests.length})`,
-    makeTable(['ID', 'Applicant', 'Email', 'Type', 'Organization', 'Submitted', 'Decision'], requestRows));
+  const requestRows = data.contact_requests.map((request) => [
+    request.id,
+    request.facility_name,
+    typeLabel(request.organization_type),
+    request.contact_name || '—',
+    request.email,
+    request.phone,
+    request.message || '—',
+    when(request.created_at),
+    el('div', { class: 'admin-actions' }, [
+      el('details', {}, [
+        el('summary', { text: 'Approve and create login' }),
+        organizationForm(request),
+      ]),
+      el('button', {
+        type: 'button',
+        class: 'secondary',
+        onclick: () => rejectContactRequest(request),
+        text: 'Reject',
+      }),
+    ]),
+  ]);
+  addSection(mount, `Contact requests (${data.contact_requests.length})`,
+    makeTable(['ID', 'Organization', 'Type', 'Contact', 'Email', 'Phone', 'Message', 'Submitted', 'Decision'], requestRows));
+
+  addSection(mount, 'Add an organization', el('details', { class: 'admin-actions' }, [
+    el('summary', { text: 'Create a listing and login without a contact request' }),
+    organizationForm(null),
+  ]));
 
   const adminRows = data.admins.map((admin) => [
     admin.id, admin.full_name, admin.email, admin.scope, admin.organization_name,
+    admin.must_change_password ? 'Awaiting first sign-in' : 'Active',
     when(admin.created_at),
-    el('button', {
-      type: 'button',
-      class: 'secondary',
-      onclick: () => revokeAdmin(admin),
-      text: 'Revoke access',
-    }),
+    el('div', { class: 'actions' }, [
+      el('button', {
+        type: 'button',
+        class: 'secondary',
+        onclick: () => resetAdminPassword(admin),
+        text: 'Reset password',
+      }),
+      el('button', {
+        type: 'button',
+        class: 'secondary',
+        onclick: () => revokeAdmin(admin),
+        text: 'Revoke access',
+      }),
+    ]),
   ]);
-  addSection(mount, `Active organization admins (${data.admins.length})`,
-    makeTable(['ID', 'Name', 'Email', 'Type', 'Organization', 'Created', 'Action'], adminRows));
+  addSection(mount, `Organization admins (${data.admins.length})`,
+    makeTable(['ID', 'Name', 'Email', 'Type', 'Organization', 'Status', 'Created', 'Action'], adminRows));
 
   const facilityRows = data.facilities.map((facility) => [
-    facility.id, facility.name, facility.type, facility.classification,
+    facility.id, facility.name, facility.category, facility.type, facility.classification,
     `${facility.city || facility.town}, ${facility.region}`,
+    facility.location_confirmed ? 'Set' : 'Not set (hidden)',
     facility.services.join(', '),
     facility.beds ? facility.beds.display : 'No bed report',
     facility.verified ? 'Yes' : 'No',
@@ -279,11 +406,13 @@ function renderOverview(data) {
     ]),
   ]);
   addSection(mount, `Facilities (${data.facilities.length})`,
-    makeTable(['ID', 'Facility', 'Ownership', 'Level', 'Location', 'Services', 'Beds', 'Verified', 'Manage'], facilityRows));
+    makeTable(['ID', 'Facility', 'Category', 'Ownership', 'Level', 'Place', 'Map location', 'Services', 'Beds', 'Verified', 'Manage'], facilityRows));
 
   const providerRows = data.providers.map((provider) => [
     provider.id, provider.name, provider.operator_type, provider.service_level,
-    `${provider.district}, ${provider.region}`, provider.phone,
+    `${provider.district}, ${provider.region}`,
+    provider.location_confirmed ? 'Set' : 'Not set (hidden)',
+    provider.phone,
     provider.status ? provider.status.display : 'Not updated',
     provider.verified ? 'Yes' : 'No',
     el('div', { class: 'admin-actions' }, [
@@ -297,7 +426,7 @@ function renderOverview(data) {
     ]),
   ]);
   addSection(mount, `Ambulance providers (${data.providers.length})`,
-    makeTable(['ID', 'Provider', 'Operator', 'Level', 'Location', 'Phone', 'Fleet', 'Verified', 'Manage'], providerRows));
+    makeTable(['ID', 'Provider', 'Operator', 'Level', 'Place', 'Map location', 'Phone', 'Fleet', 'Verified', 'Manage'], providerRows));
 
   const changeRows = data.changes.map((change) => [
     when(change.created_at),
@@ -396,28 +525,81 @@ async function deleteDirectoryRecord(collection, record) {
   }
 }
 
-async function loadOverview() {
+async function loadReference() {
+  if (reference.regions.length) return;
+  const [regions, classifications, enums] = await Promise.all([
+    api('/regions', {}, { auth: false }),
+    api('/classifications', {}, { auth: false }),
+    api('/enums', {}, { auth: false }),
+  ]);
+  reference.regions = regions;
+  reference.classifications = classifications;
+  reference.organizationTypes = enums.organization_types;
+  reference.categories = enums.facility_categories;
+}
+
+async function loadOverview(notice) {
   loginView.hidden = true;
   dashboardView.hidden = false;
   dashboardView.innerHTML = '<p class="loading">Loading management data…</p>';
   try {
+    await loadReference();
     const data = await api('/superadmin/overview', {}, { token: SuperAuth.token() });
-    renderOverview(data);
+    renderOverview(data, notice);
   } catch (err) {
     signOut();
     showMessage(loginMessage, err.message, true);
   }
 }
 
-async function decideRequest(request, decision) {
-  const verb = decision === 'approve' ? 'Approve' : 'Reject';
-  if (!window.confirm(`${verb} ${request.full_name} for ${request.organization_name}?`)) return;
+async function createOrganization(event, form, request) {
+  event.preventDefault();
+  const values = formValues(form);
+  const button = form.querySelector('button[type="submit"]');
+  button.disabled = true;
   try {
-    await api(`/superadmin/requests/${request.id}/${decision}`, {}, {
+    const result = await api('/superadmin/organizations', {}, {
+      method: 'POST',
+      token: SuperAuth.token(),
+      body: {
+        ...values,
+        contact_request_id: request ? request.id : null,
+        ownership: values.ownership || null,
+        lat: values.lat === '' ? null : Number(values.lat),
+        lng: values.lng === '' ? null : Number(values.lng),
+      },
+    });
+    await loadOverview(credentialsNotice(result, result.organization_name));
+  } catch (err) {
+    const oldError = form.querySelector('.editor-error');
+    if (oldError) oldError.remove();
+    form.prepend(el('div', { class: 'error editor-error', role: 'alert', text: err.message }));
+    button.disabled = false;
+  }
+}
+
+async function rejectContactRequest(request) {
+  if (!window.confirm(`Reject the request from ${request.facility_name}? They are not notified automatically.`)) return;
+  try {
+    await api(`/superadmin/contact-requests/${request.id}/reject`, {}, {
       method: 'POST',
       token: SuperAuth.token(),
     });
     await loadOverview();
+  } catch (err) {
+    showMessage(dashboardView, err.message, true);
+  }
+}
+
+/* Only when an organization has lost its password and contacted us. */
+async function resetAdminPassword(admin) {
+  if (!window.confirm(`Reset the password for ${admin.full_name} (${admin.email}) at ${admin.organization_name}?\n\nOnly do this if they contacted you because they lost it. Their current password stops working immediately, and you will email them a new default password.`)) return;
+  try {
+    const result = await api(`/superadmin/admins/${admin.id}/reset-password`, {}, {
+      method: 'POST',
+      token: SuperAuth.token(),
+    });
+    await loadOverview(credentialsNotice(result, admin.organization_name));
   } catch (err) {
     showMessage(dashboardView, err.message, true);
   }
