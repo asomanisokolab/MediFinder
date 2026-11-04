@@ -38,8 +38,25 @@ Then open <http://localhost:8000>. API docs are at `/api/docs`.
 
 Administrator login is at `/admin`; the access request form is at
 `/admin/register`. Neither URL is linked from the public navigation. Requests
-remain pending until an operator verifies the applicant's affiliation and
-approves the request from the server CLI.
+remain pending until a superadmin verifies the applicant's affiliation and
+approves the request in the superadmin dashboard.
+
+The superadmin dashboard is at `/superadmin`. Superadmins can review and decide
+access requests, inspect facility/provider listings and their scoped admins,
+revoke organization-admin access, edit all facility and ambulance-provider
+directory fields, and review the latest 200 change records. Permanent deletion
+requires confirmation and also removes the deleted organization's admins,
+pending access requests, and related directory data; deleting a provider also
+clears facility links to it. Deletions and superadmin edits are audited.
+Organization-admin changes are audited from the time this feature is deployed;
+older updates are not retroactively recorded. Applicants are not emailed when
+a request is approved or rejected, so the superadmin must notify them
+separately.
+
+Superadmin accounts are never created by public registration or by the seed
+command. An authorized operator provisions the initial superadmin from the
+Droplet shell with the interactive CLI below. Once that first account exists,
+routine access-request approvals and admin management happen in the dashboard.
 
 The seed command creates the demo administrator accounts below. These are
 development accounts only; change their passwords or remove them before
@@ -107,7 +124,16 @@ port 8000 publicly.
    docker compose up -d
    ```
 
-5. Add a site block for your domain to the existing host Caddyfile (for
+5. Create the initial superadmin from the Droplet. The password is prompted
+   interactively and is not included in shell history:
+
+   ```bash
+   docker compose exec -it app python -m app.superadmins create owner@example.com "System Owner"
+   ```
+
+   Use your real admin email and name. Sign in at `/superadmin`; public
+   registration cannot create superadmin accounts.
+6. Add a site block for your domain to the existing host Caddyfile (for
    example, `/etc/caddy/Caddyfile`). Do not replace the file or remove other
    projects' site blocks:
 
@@ -126,7 +152,7 @@ port 8000 publicly.
    sudo systemctl reload caddy
    ```
 
-6. Visit `https://findcareghana.com` and check
+7. Visit `https://findcareghana.com` and check
    `https://findcareghana.com/api/v1/health`. Ensure DNS resolves to the
    Droplet and ports 80/443 reach the host Caddy service; Caddy obtains and
    renews the TLS certificate automatically. The health endpoint should report
@@ -140,20 +166,28 @@ deployment. Do not mark the directory verified or rely on it for emergencies.
 
 Public registration only submits a pending request; it does not create an
 active account. Before approving, independently verify that the applicant is
-authorized to represent the selected facility or ambulance provider. Run these
-commands from the Droplet's project directory:
+authorized to represent the selected facility or ambulance provider. Create
+the initial superadmin from an authorized Droplet shell only once (the
+password is prompted and is not included in shell history):
 
 ```bash
-docker compose exec app python -m app.admin_requests list
-docker compose exec app python -m app.admin_requests approve REQUEST_ID
-# Or reject a request:
-docker compose exec app python -m app.admin_requests reject REQUEST_ID
+docker compose exec -it app python -m app.superadmins create owner@example.com "System Owner"
 ```
 
-Approval activates the password chosen in the request. Rejected requests and
-approved requests have their stored password hash cleared. Seeded demo admins
-are created by `python -m app.seed --reset`; never use `--reset` on production
-data because it drops and rebuilds the application tables.
+Then sign in at `/superadmin` and review requests there. The dashboard also
+shows and lets you edit every facility and ambulance-provider directory
+record, shows active organization-admin accounts and audited changes, and can
+revoke organization-admin access. Directory deletion is permanent: it deletes
+the record, scoped admins, pending access requests, and related records;
+deleting an ambulance provider also removes its links from facilities. Verify
+the selection before confirming. Superadmin accounts remain CLI-provisioned;
+do not share Droplet access for routine approvals. Superadmin accounts use a
+separate login token and cannot use facility/provider admin endpoints.
+
+The seed command creates only the two demo organization-admin accounts; never
+use `python -m app.seed --reset` on production data because it drops and
+rebuilds the application tables. The superadmin account is not affected by the
+seed command.
 
 Useful commands, run from the cloned repository:
 
@@ -198,6 +232,7 @@ backend/
     schemas.py      request/response contracts
     presenters.py   ORM → JSON, including the 24-hour staleness rule
     security.py     bcrypt + JWT (8-hour expiry)
+    superadmins.py  CLI provisioning of superadmin accounts
     ratelimit.py    sliding-window limiter; emergency route exempt
     reference.py    16 regions, classifications, service catalogue
     seed.py         seed data (placeholder phone numbers)
@@ -232,7 +267,15 @@ All endpoints under `/api/v1`, JSON only, paginated, rate limited.
 | GET | `/emergency` | Facilities + ambulances + 112 in one call; never rate limited |
 | GET | `/regions`, `/services`, `/insurance`, `/classifications`, `/enums` | Reference data |
 | POST | `/admin/login` | Returns an 8-hour JWT |
-| POST | `/admin/register` | Submits a pending request; operator approval required |
+| POST | `/admin/register` | Submits a pending request; superadmin approval required |
+| POST | `/superadmin/login` | Returns a superadmin-only 8-hour JWT |
+| GET | `/superadmin/overview` | Superadmin-only directory, requests, admins, and audit history |
+| POST | `/superadmin/requests/{id}/approve`, `/reject` | Superadmin-only access decisions |
+| DELETE | `/superadmin/admins/{id}` | Superadmin-only organization-admin revocation |
+| PUT | `/superadmin/facilities/{id}` | Superadmin-only facility edit; includes services, insurance, beds, and verification |
+| DELETE | `/superadmin/facilities/{id}` | Permanently deletes a facility and its related records |
+| PUT | `/superadmin/providers/{id}` | Superadmin-only ambulance-provider edit; includes coverage, fleet, and verification |
+| DELETE | `/superadmin/providers/{id}` | Permanently deletes a provider, its related records, and facility links |
 | GET | `/admin/me`, `/admin/dashboard` | Authenticated |
 | PUT | `/facilities/{id}/beds` | Facility admin only |
 | PUT | `/facilities/{id}/services` | Facility admin only |

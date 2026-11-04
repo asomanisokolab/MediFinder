@@ -3,6 +3,8 @@
 Facility admins update beds and service status. Ambulance provider admins
 update fleet availability. One login model, scoped by the token.
 """
+import json
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -13,10 +15,12 @@ from ..models import (
     AmbulanceProvider,
     AmbulanceStatus,
     Admin,
+    AdminChangeLog,
     AdminRegistrationRequest,
     BedAvailability,
     Facility,
     Service,
+    SuperAdmin,
     utcnow,
 )
 from ..presenters import beds_out, fleet_out
@@ -41,6 +45,22 @@ from ..security import (
 router = APIRouter(tags=["admin"])
 
 
+def _record_change(
+    db, admin, organization_type, organization_id, organization_name, action, changes
+):
+    db.add(
+        AdminChangeLog(
+            admin_id=admin.id,
+            admin_email=admin.email,
+            organization_type=organization_type,
+            organization_id=organization_id,
+            organization_name=organization_name,
+            action=action,
+            changes_json=json.dumps(changes, sort_keys=True),
+        )
+    )
+
+
 @router.post("/admin/register", status_code=status.HTTP_202_ACCEPTED)
 def request_registration(payload: AdminRegistrationIn, db: Session = Depends(get_db)):
     """Create a pending admin request; it grants no access until approved."""
@@ -49,7 +69,11 @@ def request_registration(payload: AdminRegistrationIn, db: Session = Depends(get
         raise HTTPException(status_code=422, detail="Choose exactly one matching facility.")
     if (payload.scope == "provider") != (payload.provider_id is not None):
         raise HTTPException(status_code=422, detail="Choose exactly one matching provider.")
-    if db.scalar(select(Admin).where(func.lower(Admin.email) == email)):
+    if db.scalar(
+        select(Admin).where(func.lower(Admin.email) == email)
+    ) or db.scalar(
+        select(SuperAdmin).where(func.lower(SuperAdmin.email) == email)
+    ):
         raise HTTPException(status_code=409, detail="An account already uses this email.")
     if db.scalar(
         select(AdminRegistrationRequest).where(
@@ -85,7 +109,7 @@ def request_registration(payload: AdminRegistrationIn, db: Session = Depends(get
     return {
         "status": "pending",
         "message": (
-            "Your request was submitted. An operator must verify your affiliation "
+            "Your request was submitted. A superadmin must verify your affiliation "
             "before approving access."
         ),
     }
@@ -148,6 +172,14 @@ def update_beds(
         )
 
     beds = facility.beds
+    before_beds = (
+        {
+            "total_beds": beds.total_beds,
+            "available_beds": beds.available_beds,
+        }
+        if beds is not None
+        else {"total_beds": None, "available_beds": None}
+    )
     if beds is None:
         beds = BedAvailability(facility_id=facility_id)
         db.add(beds)
@@ -159,6 +191,21 @@ def update_beds(
     facility.last_updated = utcnow()
     facility.last_verified = utcnow()
     facility.verified = True
+    _record_change(
+        db,
+        admin,
+        "facility",
+        facility.id,
+        facility.name,
+        "beds.updated",
+        {
+            "total_beds": {"before": before_beds["total_beds"], "after": payload.total_beds},
+            "available_beds": {
+                "before": before_beds["available_beds"],
+                "after": payload.available_beds,
+            },
+        },
+    )
     db.commit()
     db.refresh(facility)
     return {"facility_id": facility_id, "beds": beds_out(facility)}
@@ -178,6 +225,15 @@ def update_services(
         raise HTTPException(status_code=404, detail="Facility not found")
 
     existing = {s.service_name.lower(): s for s in facility.services}
+    before_services = {
+        item.service_name.strip(): item.is_active
+        for item in payload.services
+        if item.service_name.strip()
+    }
+    previous_services = {
+        name: existing[name.lower()].is_active if name.lower() in existing else None
+        for name in before_services
+    }
     for item in payload.services:
         name = item.service_name.strip()
         if not name:
@@ -190,6 +246,18 @@ def update_services(
         row.is_active = item.is_active
 
     facility.last_updated = utcnow()
+    _record_change(
+        db,
+        admin,
+        "facility",
+        facility.id,
+        facility.name,
+        "services.updated",
+        {
+            name: {"before": previous_services[name], "after": active}
+            for name, active in before_services.items()
+        },
+    )
     db.commit()
     db.refresh(facility)
     return {
@@ -219,6 +287,14 @@ def update_fleet(
         )
 
     status = provider.status
+    before_status = (
+        {
+            "total_units": status.total_units,
+            "units_available": status.units_available,
+        }
+        if status is not None
+        else {"total_units": None, "units_available": None}
+    )
     if status is None:
         status = AmbulanceStatus(provider_id=provider_id)
         db.add(status)
@@ -228,6 +304,24 @@ def update_fleet(
 
     provider.last_updated = utcnow()
     provider.verified = True
+    _record_change(
+        db,
+        admin,
+        "provider",
+        provider.id,
+        provider.name,
+        "fleet.updated",
+        {
+            "total_units": {
+                "before": before_status["total_units"],
+                "after": payload.total_units,
+            },
+            "units_available": {
+                "before": before_status["units_available"],
+                "after": payload.units_available,
+            },
+        },
+    )
     db.commit()
     db.refresh(provider)
     return {"provider_id": provider_id, "status": fleet_out(provider)}

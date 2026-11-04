@@ -53,6 +53,10 @@ header.site a.brand {
   color: #fff; text-decoration: none; font-weight: 700; font-size: 18px;
   display: flex; align-items: center; gap: 8px;
 }
+header.site .brand-logo {
+  display: block; width: 108px; height: 32px; object-fit: contain;
+  padding: 2px 4px; background: #fff; border-radius: 5px;
+}
 header.site nav { margin-left: auto; display: flex; gap: 4px; }
 header.site nav a {
   color: #fff; text-decoration: none; font-size: 14px; padding: 10px 10px;
@@ -110,6 +114,10 @@ input[type="text"], input[type="email"], input[type="password"], input[type="num
   border: 1px solid var(--line); border-radius: 8px;
   font-size: 16px; font-family: inherit; background: #fff; color: var(--ink);
 }
+textarea {
+  width: 100%; padding: 10px 12px; border: 1px solid var(--line);
+  border-radius: 8px; font-size: 15px; font-family: inherit; color: var(--ink);
+}
 input:focus-visible, select:focus-visible, button:focus-visible, a:focus-visible, summary:focus-visible {
   outline: 3px solid #0b3fa8; outline-offset: 2px;
 }
@@ -128,6 +136,10 @@ button.secondary, .btn.secondary {
   background: #fff; color: var(--blue); border-color: var(--line);
 }
 button.secondary:hover, .btn.secondary:hover { background: var(--blue-tint); }
+button.danger {
+  background: var(--red); border-color: var(--red);
+}
+button.danger:hover { background: var(--red-dark); border-color: var(--red-dark); }
 button[disabled] { opacity: 0.55; cursor: not-allowed; }
 
 details.filters {
@@ -194,6 +206,18 @@ details.filters .body { padding: 0 14px 14px; border-top: 1px solid var(--line);
   background: var(--green-tint); border: 1px solid #b6ddca; color: var(--green);
   padding: 12px 14px; border-radius: var(--radius); margin: 12px 0; font-size: 14px;
 }
+.admin-section { margin: 24px 0; }
+.table-scroll { overflow-x: auto; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); }
+.admin-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.admin-table th, .admin-table td { text-align: left; vertical-align: top; padding: 9px 10px; border-bottom: 1px solid var(--line); }
+.admin-table th { background: var(--blue-tint); color: var(--blue-dark); white-space: nowrap; }
+.admin-table tr:last-child td { border-bottom: 0; }
+.admin-table .actions { margin: 0; min-width: 180px; }
+.admin-table .actions button { min-height: 36px; padding: 6px 10px; font-size: 13px; }
+.admin-actions { display: flex; flex-direction: column; gap: 8px; min-width: 200px; }
+.admin-actions details > summary { cursor: pointer; font-weight: 600; padding: 8px 0; }
+.admin-actions .editor-form { min-width: 320px; margin-top: 8px; }
+.admin-actions .editor-form button { width: 100%; }
 
 .results-head {
   display: flex; justify-content: space-between; align-items: baseline;

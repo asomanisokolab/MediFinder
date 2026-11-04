@@ -1,10 +1,11 @@
 """Pydantic request/response models. All API output is JSON (PRD 6.3)."""
 from datetime import datetime
-from typing import Generic, Literal, TypeVar
+from typing import Annotated, Generic, Literal, TypeVar
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 T = TypeVar("T")
+InsuranceName = Annotated[str, Field(min_length=1, max_length=80)]
 
 
 # --------------------------------------------------------------------------
@@ -186,7 +187,7 @@ class BedUpdateIn(BaseModel):
 
 
 class ServiceStatusIn(BaseModel):
-    service_name: str
+    service_name: str = Field(min_length=1, max_length=80)
     is_active: bool
 
 
@@ -197,3 +198,52 @@ class ServicesUpdateIn(BaseModel):
 class FleetUpdateIn(BaseModel):
     total_units: int = Field(ge=0, le=1000)
     units_available: int = Field(ge=0, le=1000)
+
+
+class CoverageIn(BaseModel):
+    region: str = Field(min_length=1, max_length=60)
+    district: str = Field(default="", max_length=80)
+
+
+class SuperadminFacilityUpdateIn(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    type: Literal["government", "private"]
+    classification: str = Field(min_length=1, max_length=40)
+    address: str = Field(default="", max_length=300)
+    region: str = Field(min_length=1, max_length=60)
+    city: str = Field(default="", max_length=80)
+    town: str = Field(default="", max_length=80)
+    lat: float = Field(ge=-90, le=90)
+    lng: float = Field(ge=-180, le=180)
+    phone: str = Field(default="", max_length=40)
+    hours: str = Field(default="", max_length=120)
+    is_24_hour: bool
+    has_ambulance: bool
+    ambulance_phone: str = Field(default="", max_length=40)
+    ambulance_provider_id: int | None = Field(default=None, gt=0)
+    verified: bool
+    services: list[ServiceStatusIn] = Field(default_factory=list, max_length=200)
+    insurance: list[InsuranceName] = Field(default_factory=list, max_length=100)
+    total_beds: int | None = Field(default=None, ge=0, le=10000)
+    available_beds: int | None = Field(default=None, ge=0, le=10000)
+
+
+class SuperadminProviderUpdateIn(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    operator_type: Literal["government", "private", "facility_attached"]
+    service_level: Literal["BLS", "ALS"]
+    base_address: str = Field(default="", max_length=300)
+    region: str = Field(min_length=1, max_length=60)
+    district: str = Field(default="", max_length=80)
+    lat: float = Field(ge=-90, le=90)
+    lng: float = Field(ge=-180, le=180)
+    phone: str = Field(min_length=1, max_length=40)
+    alt_phone: str = Field(default="", max_length=40)
+    hours: str = Field(default="24 hours", max_length=120)
+    is_24_hour: bool
+    cost_band: str = Field(default="", max_length=20)
+    verified: bool
+    phone_verified: bool
+    coverage: list[CoverageIn] = Field(default_factory=list, max_length=500)
+    total_units: int | None = Field(default=None, ge=0, le=1000)
+    units_available: int | None = Field(default=None, ge=0, le=1000)

@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from .config import FRONTEND_DIR, settings
 from .database import Base, engine
 from .ratelimit import RateLimitMiddleware
-from .routers import admin, ambulance, emergency, facilities, reference
+from .routers import admin, ambulance, emergency, facilities, reference, superadmin
 
 
 @asynccontextmanager
@@ -47,7 +47,7 @@ app.add_middleware(RateLimitMiddleware)
 
 
 for router in (facilities.router, ambulance.router, emergency.router,
-               reference.router, admin.router):
+               reference.router, admin.router, superadmin.router):
     app.include_router(router, prefix=settings.API_PREFIX)
 
 
@@ -59,6 +59,11 @@ def admin_login_page():
 @app.get("/admin/register", include_in_schema=False)
 def admin_registration_page():
     return FileResponse(FRONTEND_DIR / "admin-register.html")
+
+
+@app.get("/superadmin", include_in_schema=False)
+def superadmin_page():
+    return FileResponse(FRONTEND_DIR / "superadmin.html")
 
 
 @app.get("/admin.html", include_in_schema=False)

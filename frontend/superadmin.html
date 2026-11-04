@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Superadmin — MediFinder Ghana</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#1a56db">
+<link rel="icon" type="image/png" sizes="192x192" href="/images/akaditi-icon.png">
+<link rel="apple-touch-icon" href="/images/akaditi-icon.png">
+<link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="site">
+  <div class="wrap">
+    <a class="brand" href="/"><img class="brand-logo" src="/images/akaditi.jpg" alt="Akaditi">MediFinder Ghana · System management</a>
+    <nav aria-label="Main"><a href="/">Public directory</a></nav>
+  </div>
+</header>
+
+<main id="main" class="wrap">
+  <section id="login-view">
+    <h1>Superadmin sign in</h1>
+    <p class="lede">Manage access requests, organization accounts, directory records, and admin updates.</p>
+    <div id="login-message" aria-live="polite"></div>
+    <form id="login-form" class="card" style="max-width:420px">
+      <div class="field">
+        <label for="email">Email</label>
+        <input type="email" id="email" autocomplete="username" required>
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <input type="password" id="password" autocomplete="current-password" required>
+      </div>
+      <button type="submit" id="login-btn">Sign in</button>
+    </form>
+  </section>
+  <section id="dashboard-view" hidden aria-live="polite"></section>
+  <footer class="site"><p>Superadmin accounts are provisioned by an authorized operator.</p></footer>
+</main>
+
+<script src="/js/api.js"></script>
+<script src="/js/superadmin.js"></script>
+</body>
+</html>

@@ -8,6 +8,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    Text,
     String,
     UniqueConstraint,
 )
@@ -266,4 +267,30 @@ class AdminRegistrationRequest(Base):
     password_hash: Mapped[str | None] = mapped_column(String(200), nullable=True)
     full_name: Mapped[str] = mapped_column(String(120), nullable=False)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class SuperAdmin(Base):
+    __tablename__ = "superadmins"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    email: Mapped[str] = mapped_column(String(160), nullable=False, unique=True)
+    password_hash: Mapped[str] = mapped_column(String(200), nullable=False)
+    full_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class AdminChangeLog(Base):
+    __tablename__ = "admin_change_logs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    admin_id: Mapped[int | None] = mapped_column(
+        ForeignKey("admins.id", ondelete="SET NULL"), nullable=True
+    )
+    admin_email: Mapped[str] = mapped_column(String(160), nullable=False)
+    organization_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    organization_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    organization_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    action: Mapped[str] = mapped_column(String(40), nullable=False)
+    changes_json: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)

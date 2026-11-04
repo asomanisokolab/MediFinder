@@ -40,7 +40,7 @@ async function api(path, params = {}, options = {}) {
 
   const headers = { ...(options.headers || {}) };
   if (options.body) headers['Content-Type'] = 'application/json';
-  const token = Auth.token();
+  const token = options.token === undefined ? Auth.token() : options.token;
   if (token && options.auth !== false) headers['Authorization'] = `Bearer ${token}`;
 
   let response;

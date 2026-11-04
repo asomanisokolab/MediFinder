@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from .config import settings
 from .database import get_db
-from .models import Admin
+from .models import Admin, SuperAdmin
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
@@ -39,10 +39,25 @@ def create_access_token(admin: Admin) -> tuple[str, int]:
     now = datetime.now(timezone.utc)
     payload = {
         "sub": str(admin.id),
+        "role": "admin",
         "email": admin.email,
         "scope": "facility" if admin.facility_id else "provider",
         "facility_id": admin.facility_id,
         "provider_id": admin.provider_id,
+        "iat": int(now.timestamp()),
+        "exp": int((now + timedelta(seconds=expires_in)).timestamp()),
+    }
+    token = jwt.encode(payload, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
+    return token, expires_in
+
+
+def create_superadmin_access_token(admin: SuperAdmin) -> tuple[str, int]:
+    expires_in = settings.JWT_EXPIRE_HOURS * 3600
+    now = datetime.now(timezone.utc)
+    payload = {
+        "sub": str(admin.id),
+        "role": "superadmin",
+        "email": admin.email,
         "iat": int(now.timestamp()),
         "exp": int((now + timedelta(seconds=expires_in)).timestamp()),
     }
@@ -75,10 +90,43 @@ def get_current_admin(
     except jwt.InvalidTokenError:
         raise _unauthorised("Invalid token")
 
+    if payload.get("role", "admin") != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Organization administrator access required.",
+        )
     admin = db.get(Admin, int(payload.get("sub", 0)))
     if admin is None:
         raise _unauthorised("Unknown account")
     return admin
+
+
+def get_current_superadmin(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+    db: Session = Depends(get_db),
+) -> SuperAdmin:
+    if credentials is None:
+        raise _unauthorised()
+    try:
+        payload = jwt.decode(
+            credentials.credentials,
+            settings.JWT_SECRET,
+            algorithms=[settings.JWT_ALGORITHM],
+        )
+    except jwt.ExpiredSignatureError:
+        raise _unauthorised("Session expired. Sign in again.")
+    except jwt.InvalidTokenError:
+        raise _unauthorised("Invalid token")
+
+    if payload.get("role") != "superadmin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Superadmin access required.",
+        )
+    superadmin = db.get(SuperAdmin, int(payload.get("sub", 0)))
+    if superadmin is None:
+        raise _unauthorised("Unknown account")
+    return superadmin
 
 
 def require_facility(admin: Admin, facility_id: int) -> None:

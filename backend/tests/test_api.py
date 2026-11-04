@@ -16,8 +16,15 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 from app.admin_requests import approve_request  # noqa: E402
 from app.database import SessionLocal  # noqa: E402
-from app.models import Admin, AdminRegistrationRequest  # noqa: E402
+from app.models import (  # noqa: E402
+    Admin,
+    AdminChangeLog,
+    AdminRegistrationRequest,
+    AmbulanceProvider,
+    Facility,
+)
 from app.main import app  # noqa: E402
+from app.superadmins import create_superadmin  # noqa: E402
 
 client = TestClient(app)
 API = "/api/v1"
@@ -95,6 +102,283 @@ def test_admin_pages_are_separate_from_public_navigation():
         "public navigation does not link to admin",
         b">Admin</a>" not in public_page.content,
     )
+
+
+def test_superadmin_can_manage_requests_and_review_changes():
+    email = "system-owner@medifinder.gh"
+    password = "System-Owner-Testing-123"
+    create_superadmin(email, "System Owner", password)
+
+    login = client.post(
+        f"{API}/superadmin/login",
+        json={"email": email, "password": password},
+    )
+    check("superadmin can sign in", login.status_code == 200)
+    token = login.json()["access_token"]
+    super_headers = {"Authorization": f"Bearer {token}"}
+
+    facility_login = client.post(
+        f"{API}/admin/login",
+        json={"email": "facility@medifinder.gh", "password": "changeme123"},
+    )
+    facility_headers = {
+        "Authorization": f"Bearer {facility_login.json()['access_token']}"
+    }
+    check(
+        "organization admin cannot access superadmin data",
+        client.get(f"{API}/superadmin/overview", headers=facility_headers).status_code
+        == 403,
+    )
+    check(
+        "superadmin token cannot use organization admin APIs",
+        client.get(f"{API}/admin/dashboard", headers=super_headers).status_code == 403,
+    )
+
+    request_payload = {
+        "full_name": "Superadmin Managed Applicant",
+        "email": "superadmin-managed@medifinder.gh",
+        "password": "Secure-Applicant-123",
+        "scope": "facility",
+        "facility_id": 1,
+    }
+    duplicate_superadmin_email = {**request_payload, "email": email}
+    check(
+        "organization registration cannot reuse a superadmin email",
+        client.post(
+            f"{API}/admin/register", json=duplicate_superadmin_email
+        ).status_code == 409,
+    )
+    submitted = client.post(f"{API}/admin/register", json=request_payload)
+    check("new application is submitted", submitted.status_code == 202)
+
+    overview = client.get(f"{API}/superadmin/overview", headers=super_headers)
+    check("superadmin overview loads", overview.status_code == 200)
+    content = overview.json()
+    request = next(
+        item for item in content["requests"]
+        if item["email"] == request_payload["email"]
+    )
+    check("superadmin sees facilities and providers", len(content["facilities"]) >= 50
+          and len(content["providers"]) >= 20)
+    check("superadmin sees organization admins", len(content["admins"]) >= 2)
+
+    facility = content["facilities"][0]
+    facility_payload = {
+        "name": f"{facility['name']} (managed test)",
+        "type": facility["type"],
+        "classification": facility["classification"],
+        "address": facility["address"],
+        "region": facility["region"],
+        "city": facility["city"],
+        "town": facility["town"],
+        "lat": facility["lat"],
+        "lng": facility["lng"],
+        "phone": facility["phone"],
+        "hours": facility["hours"],
+        "is_24_hour": facility["is_24_hour"],
+        "has_ambulance": facility["has_ambulance"],
+        "ambulance_phone": facility["ambulance_phone"],
+        "ambulance_provider_id": facility["ambulance_provider_id"],
+        "verified": facility["verified"],
+        "services": facility["service_detail"],
+        "insurance": facility["insurance"],
+        "total_beds": facility["admin_beds"]["total_beds"] if facility["admin_beds"] else None,
+        "available_beds": (
+            facility["admin_beds"]["available_beds"] if facility["admin_beds"] else None
+        ),
+    }
+    facility_update = client.put(
+        f"{API}/superadmin/facilities/{facility['id']}",
+        json=facility_payload,
+        headers=super_headers,
+    )
+    check(
+        "superadmin can edit a facility",
+        facility_update.status_code == 200
+        and facility_update.json()["name"] == facility_payload["name"]
+        and facility_update.json()["beds"]["is_stale"] == facility["beds"]["is_stale"],
+        facility_update.text,
+    )
+    check(
+        "facility edits are visible in public directory",
+        client.get(f"{API}/facilities/{facility['id']}").json()["name"]
+        == facility_payload["name"],
+    )
+    invalid_facility = {**facility_payload, "available_beds": 100001}
+    check(
+        "facility edit validates bed availability",
+        client.put(
+            f"{API}/superadmin/facilities/{facility['id']}",
+            json=invalid_facility,
+            headers=super_headers,
+        ).status_code == 422,
+    )
+
+    provider = content["providers"][0]
+    provider_payload = {
+        "name": f"{provider['name']} (managed test)",
+        "operator_type": provider["operator_type"],
+        "service_level": provider["service_level"],
+        "base_address": provider["base_address"],
+        "region": provider["region"],
+        "district": provider["district"],
+        "lat": provider["lat"],
+        "lng": provider["lng"],
+        "phone": provider["phone"],
+        "alt_phone": provider["alt_phone"],
+        "hours": provider["hours"],
+        "is_24_hour": provider["is_24_hour"],
+        "cost_band": provider["cost_band"],
+        "verified": provider["verified"],
+        "phone_verified": provider["phone_verified_at"] is not None,
+        "coverage": provider["coverage"],
+        "total_units": (
+            provider["admin_status"]["total_units"] if provider["admin_status"] else None
+        ),
+        "units_available": (
+            provider["admin_status"]["units_available"] if provider["admin_status"] else None
+        ),
+    }
+    provider_update = client.put(
+        f"{API}/superadmin/providers/{provider['id']}",
+        json=provider_payload,
+        headers=super_headers,
+    )
+    check(
+        "superadmin can edit an ambulance provider",
+        provider_update.status_code == 200
+        and provider_update.json()["name"] == provider_payload["name"]
+        and provider_update.json()["status"]["is_stale"] == provider["status"]["is_stale"],
+        provider_update.text,
+    )
+    check(
+        "provider edits are visible in public directory",
+        client.get(f"{API}/ambulance/providers/{provider['id']}").json()["name"]
+        == provider_payload["name"],
+    )
+
+    approved = client.post(
+        f"{API}/superadmin/requests/{request['id']}/approve",
+        headers=super_headers,
+    )
+    check("superadmin can approve access request", approved.status_code == 200)
+    applicant_login = client.post(
+        f"{API}/admin/login",
+        json={
+            "email": request_payload["email"],
+            "password": request_payload["password"],
+        },
+    )
+    check("approved applicant can sign in", applicant_login.status_code == 200)
+
+    with SessionLocal() as db:
+        changes = db.query(AdminChangeLog).filter_by(admin_email="facility@medifinder.gh").all()
+        check("admin changes are recorded for superadmin review", len(changes) >= 2)
+
+    refreshed = client.get(f"{API}/superadmin/overview", headers=super_headers).json()
+    check("superadmin sees recorded changes", len(refreshed["changes"]) >= 2)
+    check(
+        "superadmin directory edits are audited",
+        any(change["action"] == "facility.updated_by_superadmin"
+            for change in refreshed["changes"])
+        and any(change["action"] == "provider.updated_by_superadmin"
+                for change in refreshed["changes"]),
+    )
+    created_admin = next(
+        item for item in refreshed["admins"]
+        if item["email"] == request_payload["email"]
+    )
+    revoked = client.delete(
+        f"{API}/superadmin/admins/{created_admin['id']}",
+        headers=super_headers,
+    )
+    check("superadmin can revoke organization admin", revoked.status_code == 204)
+
+    with SessionLocal() as db:
+        provider_record = AmbulanceProvider(
+            name="Superadmin Deletion Test Provider",
+            operator_type="private",
+            service_level="BLS",
+            region="Greater Accra",
+            district="Accra",
+            lat=5.56,
+            lng=-0.20,
+            phone="+233000000000",
+        )
+        db.add(provider_record)
+        db.flush()
+        facility_record = Facility(
+            name="Superadmin Deletion Test Facility",
+            type="private",
+            classification="Private",
+            region="Greater Accra",
+            lat=5.57,
+            lng=-0.21,
+            has_ambulance=True,
+            ambulance_provider_id=provider_record.id,
+        )
+        db.add(facility_record)
+        db.flush()
+        provider_id = provider_record.id
+        facility_id = facility_record.id
+        db.add_all([
+            Admin(
+                provider_id=provider_id,
+                email="delete-provider-test@medifinder.gh",
+                password_hash="not-used",
+                full_name="Provider Delete Test",
+            ),
+            Admin(
+                facility_id=facility_id,
+                email="delete-facility-test@medifinder.gh",
+                password_hash="not-used",
+                full_name="Facility Delete Test",
+            ),
+            AdminRegistrationRequest(
+                facility_id=facility_id,
+                email="pending-facility-delete@medifinder.gh",
+                password_hash=None,
+                full_name="Pending Facility Delete",
+                status="pending",
+            ),
+        ])
+        db.commit()
+
+    deleted_provider = client.delete(
+        f"{API}/superadmin/providers/{provider_id}",
+        headers=super_headers,
+    )
+    check("superadmin can permanently delete a provider", deleted_provider.status_code == 204)
+    with SessionLocal() as db:
+        check(
+            "provider deletion clears facility link and removes scoped admin",
+            db.get(Facility, facility_id).ambulance_provider_id is None
+            and db.query(Admin)
+            .filter_by(email="delete-provider-test@medifinder.gh")
+            .count() == 0,
+        )
+    deleted_facility = client.delete(
+        f"{API}/superadmin/facilities/{facility_id}",
+        headers=super_headers,
+    )
+    check("superadmin can permanently delete a facility", deleted_facility.status_code == 204)
+    with SessionLocal() as db:
+        check(
+            "facility deletion removes scoped admins and pending requests",
+            db.query(Admin).filter_by(email="delete-facility-test@medifinder.gh").count() == 0
+            and db.query(AdminRegistrationRequest)
+            .filter_by(email="pending-facility-delete@medifinder.gh")
+            .count() == 0,
+        )
+        check(
+            "directory deletion is retained in audit history",
+            db.query(AdminChangeLog)
+            .filter_by(action="facility.deleted_by_superadmin")
+            .count() == 1
+            and db.query(AdminChangeLog)
+            .filter_by(action="provider.deleted_by_superadmin")
+            .count() == 1,
+        )
 
 
 def test_reference():
