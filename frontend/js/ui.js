@@ -47,9 +47,9 @@ async function renderDataBanner(target) {
         el('strong', { text: 'Unverified directory data' }),
         el('span', {
           text:
-            'Facility and ambulance details here are seed data and have not been ' +
-            'confirmed. Phone numbers are placeholders and will not connect. ' +
-            'In a real emergency call 112.',
+            'Listings come from public sources and have not been confirmed by the ' +
+            'facilities. Some phone numbers are placeholders, and others may be out ' +
+            'of date. In a real emergency call 112.',
         }),
       ])
     );

@@ -79,6 +79,7 @@ class FacilitySummary(BaseModel):
     category: str
     classification: str
     region: str
+    district: str = ""
     city: str
     town: str
     lat: float
@@ -96,6 +97,9 @@ class FacilitySummary(BaseModel):
 class FacilityDetail(FacilitySummary):
     address: str
     hours: str
+    website: str = ""
+    # "osm" or "who-ssa" for imported records, shown as attribution.
+    source: str = ""
     ambulance_phone: str
     ambulance_provider_id: int | None = None
     insurance: list[str] = []

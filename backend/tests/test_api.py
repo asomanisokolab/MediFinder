@@ -24,6 +24,7 @@ from app.models import (  # noqa: E402
     Facility,
 )
 from app.main import app  # noqa: E402
+from app.seed import FACILITIES as SEED_FACILITIES  # noqa: E402
 from app.superadmins import create_superadmin  # noqa: E402
 
 client = TestClient(app)
@@ -777,6 +778,42 @@ def test_bad_input():
     check("invalid token rejected",
           client.get(f"{API}/admin/me",
                      headers={"Authorization": "Bearer nonsense"}).status_code == 401)
+
+
+def test_open_data_directory():
+    districts = client.get(f"{API}/regions/Greater Accra/districts").json()
+    check("districts listed for a region", len(districts) > 5, f"got {len(districts)}")
+    district = districts[0]
+    items = client.get(
+        f"{API}/facilities", params={"district": district, "page_size": 100}
+    ).json()["items"]
+    check("district filter returns results", len(items) > 0)
+    check("district filter respected", all(f["district"] == district for f in items))
+    towns = client.get(
+        f"{API}/regions/Greater Accra/localities", params={"district": district}
+    ).json()
+    check("localities narrow to a district", len(towns) > 0)
+
+    with SessionLocal() as db:
+        imported = db.query(Facility).filter(Facility.source == "osm").first()
+        # Facilities created by earlier tests through the superadmin form
+        # have no district; only the seeded ones are checked.
+        curated_without_district = db.query(Facility).filter(
+            Facility.district == "", Facility.name.in_([row[0] for row in SEED_FACILITIES])
+        ).count()
+    check("open-data records are imported", imported is not None)
+    check("imported records carry region and district",
+          bool(imported.region and imported.district))
+    check("imported records start unverified", imported.verified is False)
+    check("every record has a district", curated_without_district == 0,
+          f"{curated_without_district} without")
+    profile = client.get(f"{API}/facilities/{imported.id}").json()
+    check("profile names its data source", profile["source"] == "osm")
+
+    pharmacies = client.get(
+        f"{API}/facilities", params={"category": "pharmacy", "page_size": 5}
+    ).json()
+    check("pharmacies are searchable", pharmacies["total"] > 100, f"total={pharmacies['total']}")
 
 
 def test_launch_checklist_pages():

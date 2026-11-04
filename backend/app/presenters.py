@@ -70,6 +70,7 @@ def facility_summary(facility: Facility, distance_km: float | None = None) -> di
         "category": facility.category,
         "classification": facility.classification,
         "region": facility.region,
+        "district": facility.district,
         "city": facility.city,
         "town": facility.town,
         "lat": facility.lat,
@@ -91,6 +92,8 @@ def facility_detail(facility: Facility, distance_km: float | None = None) -> dic
         {
             "address": facility.address,
             "hours": facility.hours,
+            "website": facility.website,
+            "source": facility.source,
             "ambulance_phone": facility.ambulance_phone,
             "ambulance_provider_id": facility.ambulance_provider_id,
             "insurance": sorted(i.insurance_name for i in facility.insurance),

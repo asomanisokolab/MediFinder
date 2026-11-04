@@ -23,6 +23,7 @@ import sys
 from sqlalchemy import select
 
 from .database import Base, SessionLocal, drop_legacy_tables, engine, ensure_schema
+from .directory_import import DEFAULT_CSV, import_directory
 from .models import (
     Admin,
     AmbulanceCoverage,
@@ -220,7 +221,19 @@ def reset_schema() -> None:
     Base.metadata.create_all(bind=engine)
 
 
-def seed(reset: bool = False) -> None:
+def _fill_districts(db) -> None:
+    """The hand-made records above predate districts: borrow the district of
+    the nearest imported record in the same region."""
+    imported = db.scalars(select(Facility).where(Facility.district != "")).all()
+    for facility in db.scalars(select(Facility).where(Facility.district == "")).all():
+        nearby = [f for f in imported if f.region == facility.region]
+        if nearby:
+            nearest = min(nearby, key=lambda f: (f.lat - facility.lat) ** 2 + (f.lng - facility.lng) ** 2)
+            facility.district = nearest.district
+    db.commit()
+
+
+def seed(reset: bool = False, with_directory: bool = True) -> None:
     if reset:
         reset_schema()
     else:
@@ -351,6 +364,9 @@ def seed(reset: bool = False) -> None:
         db.commit()
 
         print(f"Seeded {len(FACILITIES)} facilities and {len(PROVIDERS)} ambulance providers.")
+        if with_directory and DEFAULT_CSV.exists():
+            import_directory(DEFAULT_CSV)
+            _fill_districts(db)
         print("Demo logins (change before deploying):")
         print("  facility@medifinder.gh  / changeme123")
         print("  ambulance@medifinder.gh / changeme123")
@@ -377,9 +393,14 @@ if __name__ == "__main__":
         action="store_true",
         help="Drop and rebuild all tables without inserting seed data",
     )
+    parser.add_argument(
+        "--no-directory",
+        action="store_true",
+        help="Skip loading the open-data directory (data/ghana_facilities.csv)",
+    )
     args = parser.parse_args()
     if args.empty:
         clear_database()
     else:
-        seed(reset=args.reset)
+        seed(reset=args.reset, with_directory=not args.no_directory)
     sys.exit(0)

@@ -1,0 +1,12 @@
+[out:json][timeout:300];
+area["ISO3166-1"="GH"][admin_level=2]->.gh;
+(
+  nwr["amenity"~"^(hospital|clinic|doctors|dentist|pharmacy|nursing_home)$"](area.gh);
+  nwr["healthcare"](area.gh);
+  nwr["shop"~"^(chemist|medical_supply)$"](area.gh);
+  nwr["social_facility"~"^(nursing_home|assisted_living)$"](area.gh);
+  nwr["amenity"="funeral_hall"](area.gh);
+  nwr["shop"="funeral_directors"](area.gh);
+  nwr["emergency"="ambulance_station"](area.gh);
+);
+out center body;

@@ -18,12 +18,22 @@ environment variables, so existing `.env` files keep working.
 
 ## ⚠️ Data provenance — read before showing this to anyone
 
-The shipped dataset is **seed data, not a verified directory**.
+The shipped dataset is **seed data, not a verified directory**. It has two parts:
 
-- Facility and ambulance provider **names, regions and approximate coordinates**
-  are real public reference points.
-- **Every phone number is a placeholder** (`+233 30 000 XXXX`). None has been
-  dialled. None will connect.
+1. **59 hand-picked facilities and 27 ambulance providers** in `seed.py`.
+   Names, regions and approximate coordinates are real public reference
+   points. **Every phone number is a placeholder** (`+233 30 000 XXXX`). None
+   has been dialled, and none will connect.
+2. **About 2,400 hospitals, clinics, CHPS compounds, pharmacies, chemical
+   sellers, funeral homes and care homes from OpenStreetMap**, in
+   `data/ghana_facilities.csv` (see [data/SOURCES.md](data/SOURCES.md)). They
+   have real coordinates, and each has a region, district (MMDA), city or
+   town, and community. Phone numbers and opening hours appear only where
+   OpenStreetMap mappers recorded them, about 1 in 8 records. None has been
+   called. Services list only what the source says the place is, such as a
+   pharmacy, dentist or CHPS compound. Nothing is guessed. Each profile
+   credits OpenStreetMap, as the ODbL licence requires.
+
 - Every record ships with `verified = false` and `phone_verified_at = null`, the
   API reports `data_verified: false`, and the UI shows an unverified banner on
   every screen.
@@ -287,6 +297,7 @@ docker compose logs -f app       # application logs
 git pull --ff-only origin main   # fetch the latest main branch
 docker compose up -d --build app # rebuild and reload only the app
 docker compose down              # stop services; database volume is retained
+docker compose exec app python -m app.directory_import  # load or refresh the open-data directory
 ```
 
 After an update, confirm the app is running with `docker compose ps`, inspect
@@ -372,6 +383,7 @@ backend/
     ratelimit.py    sliding-window limiter; emergency route exempt
     reference.py    regions, classifications, categories, organization types
     seed.py         seed data (placeholder phone numbers)
+    directory_import.py  loads data/ghana_facilities.csv (safe on live data)
     routers/        facilities, ambulance, emergency, reference, contact,
                     admin, superadmin, site (robots.txt, sitemap.xml, site config)
   tests/test_api.py
@@ -392,6 +404,12 @@ frontend/
   js/               api, ui, site (cookie banner + analytics), home, facility,
                     ambulance, contact, admin, superadmin
   manifest.json     PWA manifest (offline caching is Phase 3)
+data/
+  ghana_facilities.csv  open-data facility directory (OpenStreetMap)
+  SOURCES.md            sources, licences, how to rebuild
+scripts/
+  build_directory.py    builds the CSV from downloaded open data
+  overpass/             the OpenStreetMap queries
 docs/
   FindCare-Ghana-How-Access-Works.pdf  plain-language guide for staff
   build_access_guide.py                regenerates the PDF (needs reportlab)

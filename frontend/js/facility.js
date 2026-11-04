@@ -136,10 +136,18 @@ function render(facility) {
         el('dd', { text: facility.hours || 'Not recorded' }),
         el('dt', { text: 'Phone' }),
         el('dd', { text: facility.phone || 'Not recorded' }),
+        /^https?:\/\//.test(facility.website) ? el('dt', { text: 'Website' }) : null,
+        /^https?:\/\//.test(facility.website)
+          ? el('dd', {}, [el('a', { href: facility.website, target: '_blank', rel: 'noopener nofollow', text: facility.website.replace(/^https?:\/\//, '') })])
+          : null,
         el('dt', { text: 'Region' }),
         el('dd', { text: facility.region }),
+        facility.district ? el('dt', { text: 'District / municipal' }) : null,
+        facility.district ? el('dd', { text: facility.district }) : null,
         el('dt', { text: 'City or town' }),
-        el('dd', { text: facility.city || facility.town || 'Not recorded' }),
+        el('dd', { text: facility.city || 'Not recorded' }),
+        facility.town && facility.town !== facility.city ? el('dt', { text: 'Community' }) : null,
+        facility.town && facility.town !== facility.city ? el('dd', { text: facility.town }) : null,
         el('dt', { text: 'GPS coordinates' }),
         el('dd', { text: `${facility.lat.toFixed(5)}, ${facility.lng.toFixed(5)}` }),
         // PRD 5.1.3: last data verification date is shown on the profile.
@@ -152,9 +160,18 @@ function render(facility) {
         el('dt', { text: 'Record last updated' }),
         el('dd', { text: fmtWhen(facility.last_updated) }),
       ]),
+      SOURCE_CREDIT[facility.source]
+        ? el('p', { class: 'notice', html: SOURCE_CREDIT[facility.source] })
+        : null,
     ])
   );
 }
+
+/* Attribution required by the open-data licences of imported records. */
+const SOURCE_CREDIT = {
+  osm: 'Listing data from <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a> (ODbL). Not yet confirmed by the facility.',
+  'who-ssa': 'Listing data from the WHO list of public health facilities in sub-Saharan Africa (CC BY 4.0). Not yet confirmed by the facility.',
+};
 
 /* Page description and canonical link for this facility, for search engines
    and link previews. */

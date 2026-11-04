@@ -15,6 +15,7 @@ router = APIRouter(prefix="/facilities", tags=["facilities"])
 
 def _filters(
     region: str | None,
+    district: str | None,
     city: str | None,
     town: str | None,
     facility_type: str | None,
@@ -31,6 +32,8 @@ def _filters(
     conds = [Facility.location_confirmed.is_(True)]
     if region:
         conds.append(func.lower(Facility.region) == region.strip().lower())
+    if district:
+        conds.append(func.lower(Facility.district) == district.strip().lower())
     if city:
         conds.append(func.lower(Facility.city) == city.strip().lower())
     if town:
@@ -71,6 +74,7 @@ def _filters(
                 func.lower(Facility.name).like(like),
                 func.lower(Facility.city).like(like),
                 func.lower(Facility.town).like(like),
+                func.lower(Facility.district).like(like),
                 func.lower(Facility.region).like(like),
                 func.lower(Facility.address).like(like),
             )
@@ -96,6 +100,7 @@ def facilities_nearby(
     lng: float = Query(..., ge=-180, le=180),
     radius_km: float = Query(settings.NEARBY_RADIUS_KM, gt=0, le=500),
     region: str | None = None,
+    district: str | None = None,
     city: str | None = None,
     town: str | None = None,
     facility_type: str | None = Query(None, alias="type"),
@@ -118,7 +123,7 @@ def facilities_nearby(
     dist = distance_km_expr(Facility.lat, Facility.lng, lat, lng)
 
     conds = _filters(
-        region, city, town, facility_type, category, classification, services,
+        region, district, city, town, facility_type, category, classification, services,
         insurance, is_24_hour, has_ambulance, q,
     )
     conds += [
@@ -142,8 +147,9 @@ def facilities_nearby(
 
 @router.get("/search", response_model=Page[FacilitySummary])
 def facilities_search(
-    q: str | None = Query(None, description="Free text over name, city, town, region"),
+    q: str | None = Query(None, description="Free text over name, district, city, town, region"),
     region: str | None = None,
+    district: str | None = None,
     city: str | None = None,
     town: str | None = None,
     facility_type: str | None = Query(None, alias="type"),
@@ -165,7 +171,7 @@ def facilities_search(
     so the GPS and manual paths return the same shape.
     """
     conds = _filters(
-        region, city, town, facility_type, category, classification, services,
+        region, district, city, town, facility_type, category, classification, services,
         insurance, is_24_hour, has_ambulance, q,
     )
 
@@ -192,6 +198,7 @@ def facilities_search(
 @router.get("", response_model=Page[FacilitySummary])
 def list_facilities(
     region: str | None = None,
+    district: str | None = None,
     city: str | None = None,
     town: str | None = None,
     facility_type: str | None = Query(None, alias="type"),
@@ -208,7 +215,7 @@ def list_facilities(
 ):
     """List all facilities with optional filters (PRD 6.4)."""
     conds = _filters(
-        region, city, town, facility_type, category, classification, services,
+        region, district, city, town, facility_type, category, classification, services,
         insurance, is_24_hour, has_ambulance, q,
     )
     rows, total = _paginate(

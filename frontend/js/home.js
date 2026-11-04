@@ -12,7 +12,7 @@ const QUICK_SERVICES = [
 const state = { page: 1, coords: null };
 
 const dom = {};
-['q', 'category', 'region', 'city', 'service-other', 'insurance', 'classification', 'type', 'is24',
+['q', 'category', 'region', 'district', 'city', 'service-other', 'insurance', 'classification', 'type', 'is24',
  'hasamb', 'results', 'results-count', 'results-title', 'pager', 'emergency-btn',
  'emergency-panel', 'locate-btn', 'locate-status', 'search-form', 'service-checks',
 ].forEach((id) => {
@@ -50,11 +50,26 @@ async function loadReference() {
     .forEach((s) => dom['service-other'].appendChild(el('option', { value: s, text: s })));
 }
 
+async function loadDistricts() {
+  clear(dom.district).appendChild(el('option', { value: '', text: 'All districts' }));
+  if (dom.region.value) {
+    try {
+      const districts = await api(`/regions/${encodeURIComponent(dom.region.value)}/districts`);
+      districts.forEach((d) => dom.district.appendChild(el('option', { value: d, text: d })));
+    } catch (err) {
+      /* the free-text field still works */
+    }
+  }
+  await loadLocalities();
+}
+
 async function loadLocalities() {
   clear(dom.city).appendChild(el('option', { value: '', text: 'All' }));
   if (!dom.region.value) return;
   try {
-    const towns = await api(`/regions/${encodeURIComponent(dom.region.value)}/localities`);
+    const towns = await api(`/regions/${encodeURIComponent(dom.region.value)}/localities`, {
+      district: dom.district.value,
+    });
     towns.forEach((t) => dom.city.appendChild(el('option', { value: t, text: t })));
   } catch (err) {
     /* the free-text field still works */
@@ -74,6 +89,7 @@ function currentParams() {
     q: dom.q.value.trim(),
     category: dom.category.value,
     region: dom.region.value,
+    district: dom.district.value,
     city: dom.city.value,
     insurance: dom.insurance.value,
     classification: dom.classification.value,
@@ -268,7 +284,8 @@ document.getElementById('mobile-emergency').addEventListener('click', (event) =>
   emergency();
 });
 dom['locate-btn'].addEventListener('click', locate);
-dom.region.addEventListener('change', loadLocalities);
+dom.region.addEventListener('change', loadDistricts);
+dom.district.addEventListener('change', loadLocalities);
 ['service-other', 'insurance', 'classification', 'type'].forEach((id) =>
   dom[id].addEventListener('change', () => {
     state.page = 1;

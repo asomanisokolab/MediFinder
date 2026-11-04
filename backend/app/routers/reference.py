@@ -28,16 +28,32 @@ def list_regions():
     return GHANA_REGIONS
 
 
-@router.get("/regions/{region}/localities", response_model=list[str])
-def list_localities(region: str, db: Session = Depends(get_db)):
-    """Cities and towns known in a region, for the manual search dropdown."""
+@router.get("/regions/{region}/districts", response_model=list[str])
+def list_districts(region: str, db: Session = Depends(get_db)):
+    """Metropolitan, municipal and district assemblies with listed facilities."""
     rows = db.scalars(
-        select(distinct(Facility.city))
+        select(distinct(Facility.district))
         .where(
             func.lower(Facility.region) == region.strip().lower(),
             Facility.location_confirmed.is_(True),
         )
-        .order_by(Facility.city.asc())
+        .order_by(Facility.district.asc())
+    ).all()
+    return [r for r in rows if r]
+
+
+@router.get("/regions/{region}/localities", response_model=list[str])
+def list_localities(region: str, district: str | None = None, db: Session = Depends(get_db)):
+    """Cities and towns known in a region (or one district of it), for the
+    manual search dropdown."""
+    conds = [
+        func.lower(Facility.region) == region.strip().lower(),
+        Facility.location_confirmed.is_(True),
+    ]
+    if district:
+        conds.append(func.lower(Facility.district) == district.strip().lower())
+    rows = db.scalars(
+        select(distinct(Facility.city)).where(*conds).order_by(Facility.city.asc())
     ).all()
     return [r for r in rows if r]
 

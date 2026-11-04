@@ -62,6 +62,10 @@ _ADDED_COLUMNS = [
     ("facilities", "location_confirmed", "BOOLEAN NOT NULL DEFAULT TRUE"),
     ("ambulance_providers", "location_confirmed", "BOOLEAN NOT NULL DEFAULT TRUE"),
     ("admins", "must_change_password", "BOOLEAN NOT NULL DEFAULT FALSE"),
+    ("facilities", "district", "VARCHAR(80) NOT NULL DEFAULT ''"),
+    ("facilities", "source", "VARCHAR(20) NOT NULL DEFAULT ''"),
+    ("facilities", "source_ref", "VARCHAR(120) NOT NULL DEFAULT ''"),
+    ("facilities", "website", "VARCHAR(200) NOT NULL DEFAULT ''"),
 ]
 
 # Tables no longer in the models. Only dropped by the destructive seed

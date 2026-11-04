@@ -36,10 +36,18 @@ class Facility(Base):
     classification: Mapped[str] = mapped_column(String(40), nullable=False)
     address: Mapped[str] = mapped_column(String(300), default="")
     region: Mapped[str] = mapped_column(String(60), nullable=False)
+    # Metropolitan, municipal or district assembly area.
+    district: Mapped[str] = mapped_column(String(80), default="")
     city: Mapped[str] = mapped_column(String(80), default="")
+    # Community, suburb or village within the city.
     town: Mapped[str] = mapped_column(String(80), default="")
     lat: Mapped[float] = mapped_column(Float, nullable=False)
     lng: Mapped[float] = mapped_column(Float, nullable=False)
+    # Where an imported record came from ("osm", "who-ssa") and its ID
+    # there, so re-imports update the same row. Empty for manual records.
+    source: Mapped[str] = mapped_column(String(20), default="")
+    source_ref: Mapped[str] = mapped_column(String(120), default="")
+    website: Mapped[str] = mapped_column(String(200), default="")
     # False while lat/lng is only the region centroid placeholder. Such
     # records stay out of public listings until the organization sets its
     # real position, so distance results are never invented.
