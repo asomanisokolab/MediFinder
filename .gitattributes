@@ -2,3 +2,5 @@
 *.png binary
 *.jpg binary
 *.ico binary
+gradlew text eol=lf
+*.jar binary

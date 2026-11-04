@@ -183,9 +183,14 @@ function describePage(facility) {
     `${facility.name}: ${kind.toLowerCase()} in ${place}. ` +
     'Phone number, services, opening hours and directions on FindCare Ghana.';
   const url = `https://findcareghana.com/facility.html?id=${encodeURIComponent(facility.id)}`;
-  document.querySelector('meta[name="description"]').setAttribute('content', description);
-  document.querySelector('meta[property="og:title"]').setAttribute('content', document.title);
-  document.querySelector('meta[property="og:description"]').setAttribute('content', description);
+  // The mobile app strips the sharing tags, so each one is optional.
+  const set = (selector, value) => {
+    const tag = document.querySelector(selector);
+    if (tag) tag.setAttribute('content', value);
+  };
+  set('meta[name="description"]', description);
+  set('meta[property="og:title"]', document.title);
+  set('meta[property="og:description"]', description);
   document.head.appendChild(el('link', { rel: 'canonical', href: url }));
 }
 

@@ -1,0 +1,25 @@
+/* Mobile app only, loaded after styles.css. The app draws edge to edge, so
+   keep the header clear of the status bar and camera cut-out, and the
+   bottom shortcut bar clear of the gesture area. */
+
+body.in-app {
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+
+body.in-app header.site {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  padding-top: max(env(safe-area-inset-top), 10px);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+/* The shortcut bar shows on every width in the app, including tablets. */
+body.in-app .mobile-cta { display: flex; }
+body.in-app .site-footer { padding-bottom: calc(72px + env(safe-area-inset-bottom)); }
+
+/* Links in the footer that go to the website open in the browser; the
+   website-only footer note about cookie settings is not needed here. */
+body.in-app .footer-legal .link-button { display: none; }

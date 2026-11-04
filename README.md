@@ -50,6 +50,14 @@ with placeholder contents, not something anyone should rely on in an emergency.
 
 ---
 
+## Mobile app
+
+`mobile/` holds the Android app (iOS ready to add). It contains only the
+public pages: Find care, Ambulance and Contact us. There are no admin or
+superadmin pages. GitHub Actions builds an installable APK on every push; see
+[mobile/README.md](mobile/README.md) for downloading it and publishing on
+Google Play.
+
 ## Run it
 
 ```bash
@@ -509,6 +517,7 @@ data/
 scripts/
   build_directory.py    builds the CSV from downloaded open data
   overpass/             the OpenStreetMap queries
+mobile/                 Android app of the public pages (Capacitor)
 docs/
   FindCare-Ghana-How-Access-Works.pdf  plain-language guide for staff
   build_access_guide.py                regenerates the PDF (needs reportlab)

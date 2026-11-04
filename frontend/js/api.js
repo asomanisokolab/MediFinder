@@ -2,6 +2,9 @@
    Loaded by every page. Kept dependency-free on purpose (PRD 6.1). */
 
 const API = '/api/v1';
+// The website calls its own server. The mobile app runs from local files
+// and sets window.API_ORIGIN to the live site before this script loads.
+const API_ORIGIN = window.API_ORIGIN || window.location.origin;
 
 /* ---------- element helper -------------------------------------------
    Builds nodes with textContent rather than innerHTML, so facility names
@@ -31,7 +34,7 @@ function clear(node) {
 
 /* ---------- api ------------------------------------------------------ */
 async function api(path, params = {}, options = {}) {
-  const url = new URL(API + path, window.location.origin);
+  const url = new URL(API + path, API_ORIGIN);
   for (const [key, value] of Object.entries(params)) {
     if (value === null || value === undefined || value === '') continue;
     if (Array.isArray(value)) value.forEach((v) => url.searchParams.append(key, v));

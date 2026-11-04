@@ -1,0 +1,9 @@
+{
+  "appId": "com.findcareghana.app",
+  "appName": "FindCare Ghana",
+  "webDir": "www",
+  "backgroundColor": "#f4f7f6",
+  "android": {
+    "allowMixedContent": false
+  }
+}
