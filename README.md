@@ -36,7 +36,14 @@ python -m uvicorn app.main:app --reload --port 8000
 
 Then open <http://localhost:8000>. API docs are at `/api/docs`.
 
-Demo administrator logins (change before any deployment):
+Administrator login is at `/admin`; the access request form is at
+`/admin/register`. Neither URL is linked from the public navigation. Requests
+remain pending until an operator verifies the applicant's affiliation and
+approves the request from the server CLI.
+
+The seed command creates the demo administrator accounts below. These are
+development accounts only; change their passwords or remove them before
+deployment:
 
 | Account | Password | Scope |
 | --- | --- | --- |
@@ -51,9 +58,9 @@ python -m app.seed --reset
 python tests/test_api.py
 ```
 
-71 checks covering distance ordering, the dental filter, ambulance
-coverage-before-distance, emergency mode with and without GPS, the 24-hour
-staleness rule, and admin authorisation boundaries.
+Checks cover pending admin registration and approval, distance ordering, the
+dental filter, ambulance coverage-before-distance, emergency mode with and
+without GPS, the 24-hour staleness rule, and admin authorisation boundaries.
 
 ---
 
@@ -129,6 +136,25 @@ The seed data is unverified demo data: the phone numbers are placeholders and
 do not connect. Change both demo administrator passwords before sharing this
 deployment. Do not mark the directory verified or rely on it for emergencies.
 
+### Reviewing administrator requests
+
+Public registration only submits a pending request; it does not create an
+active account. Before approving, independently verify that the applicant is
+authorized to represent the selected facility or ambulance provider. Run these
+commands from the Droplet's project directory:
+
+```bash
+docker compose exec app python -m app.admin_requests list
+docker compose exec app python -m app.admin_requests approve REQUEST_ID
+# Or reject a request:
+docker compose exec app python -m app.admin_requests reject REQUEST_ID
+```
+
+Approval activates the password chosen in the request. Rejected requests and
+approved requests have their stored password hash cleared. Seeded demo admins
+are created by `python -m app.seed --reset`; never use `--reset` on production
+data because it drops and rebuilds the application tables.
+
 Useful commands, run from the cloned repository:
 
 ```bash
@@ -175,6 +201,7 @@ backend/
     ratelimit.py    sliding-window limiter; emergency route exempt
     reference.py    16 regions, classifications, service catalogue
     seed.py         seed data (placeholder phone numbers)
+    admin_requests.py review pending administrator access requests
     routers/        facilities, ambulance, emergency, reference, admin
   tests/test_api.py
 frontend/
@@ -205,6 +232,7 @@ All endpoints under `/api/v1`, JSON only, paginated, rate limited.
 | GET | `/emergency` | Facilities + ambulances + 112 in one call; never rate limited |
 | GET | `/regions`, `/services`, `/insurance`, `/classifications`, `/enums` | Reference data |
 | POST | `/admin/login` | Returns an 8-hour JWT |
+| POST | `/admin/register` | Submits a pending request; operator approval required |
 | GET | `/admin/me`, `/admin/dashboard` | Authenticated |
 | PUT | `/facilities/{id}/beds` | Facility admin only |
 | PUT | `/facilities/{id}/services` | Facility admin only |

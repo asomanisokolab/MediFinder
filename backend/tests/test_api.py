@@ -14,6 +14,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from fastapi.testclient import TestClient  # noqa: E402
 
+from app.admin_requests import approve_request  # noqa: E402
+from app.database import SessionLocal  # noqa: E402
+from app.models import Admin, AdminRegistrationRequest  # noqa: E402
 from app.main import app  # noqa: E402
 
 client = TestClient(app)
@@ -41,6 +44,56 @@ def test_health():
         "seed data reports itself unverified",
         r.json()["data_verified"] is False,
         "-- placeholder numbers must never claim to be verified",
+    )
+
+
+def test_admin_registration_requires_approval():
+    email = "registration-check@medifinder.gh"
+    payload = {
+        "full_name": "Registration Check",
+        "email": email,
+        "password": "Registration-Check-123",
+        "scope": "facility",
+        "facility_id": 1,
+    }
+    response = client.post(f"{API}/admin/register", json=payload)
+    check("registration creates a pending request", response.status_code == 202)
+    check("request says approval is required", response.json()["status"] == "pending")
+    check(
+        "pending registration cannot sign in",
+        client.post(f"{API}/admin/login", json={
+            "email": email, "password": payload["password"]
+        }).status_code == 401,
+    )
+    check(
+        "duplicate pending registration is rejected",
+        client.post(f"{API}/admin/register", json=payload).status_code == 409,
+    )
+
+    with SessionLocal() as db:
+        request = db.query(AdminRegistrationRequest).filter_by(email=email).one()
+        check("request stores only a password hash", request.password_hash != payload["password"])
+        admin = approve_request(db, request.id)
+        check("approval creates an active scoped admin", admin.facility_id == 1)
+        check("approved request no longer retains password hash", request.password_hash is None)
+
+    check(
+        "approved registration can sign in",
+        client.post(f"{API}/admin/login", json={
+            "email": email, "password": payload["password"]
+        }).status_code == 200,
+    )
+
+
+def test_admin_pages_are_separate_from_public_navigation():
+    login_page = client.get("/admin")
+    registration_page = client.get("/admin/register")
+    public_page = client.get("/")
+    check("separate admin login URL is served", login_page.status_code == 200)
+    check("separate registration URL is served", registration_page.status_code == 200)
+    check(
+        "public navigation does not link to admin",
+        b">Admin</a>" not in public_page.content,
     )
 
 

@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import FRONTEND_DIR, settings
@@ -49,6 +49,21 @@ app.add_middleware(RateLimitMiddleware)
 for router in (facilities.router, ambulance.router, emergency.router,
                reference.router, admin.router):
     app.include_router(router, prefix=settings.API_PREFIX)
+
+
+@app.get("/admin", include_in_schema=False)
+def admin_login_page():
+    return FileResponse(FRONTEND_DIR / "admin.html")
+
+
+@app.get("/admin/register", include_in_schema=False)
+def admin_registration_page():
+    return FileResponse(FRONTEND_DIR / "admin-register.html")
+
+
+@app.get("/admin.html", include_in_schema=False)
+def legacy_admin_login_page():
+    return RedirectResponse("/admin", status_code=308)
 
 
 @app.get("/api/v1/health", tags=["meta"])

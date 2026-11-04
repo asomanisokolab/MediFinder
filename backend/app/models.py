@@ -250,3 +250,20 @@ class Admin(Base):
     password_hash: Mapped[str] = mapped_column(String(200), nullable=False)
     full_name: Mapped[str] = mapped_column(String(120), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class AdminRegistrationRequest(Base):
+    __tablename__ = "admin_registration_requests"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    facility_id: Mapped[int | None] = mapped_column(
+        ForeignKey("facilities.id", ondelete="CASCADE"), nullable=True
+    )
+    provider_id: Mapped[int | None] = mapped_column(
+        ForeignKey("ambulance_providers.id", ondelete="CASCADE"), nullable=True
+    )
+    email: Mapped[str] = mapped_column(String(160), nullable=False)
+    password_hash: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    full_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)

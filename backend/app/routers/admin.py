@@ -3,7 +3,7 @@
 Facility admins update beds and service status. Ambulance provider admins
 update fleet availability. One login model, scoped by the token.
 """
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -12,6 +12,8 @@ from ..database import get_db
 from ..models import (
     AmbulanceProvider,
     AmbulanceStatus,
+    Admin,
+    AdminRegistrationRequest,
     BedAvailability,
     Facility,
     Service,
@@ -20,6 +22,7 @@ from ..models import (
 from ..presenters import beds_out, fleet_out
 from ..schemas import (
     AdminMeOut,
+    AdminRegistrationIn,
     BedUpdateIn,
     FleetUpdateIn,
     LoginIn,
@@ -32,9 +35,60 @@ from ..security import (
     require_facility,
     require_provider,
     verify_password,
+    hash_password,
 )
 
 router = APIRouter(tags=["admin"])
+
+
+@router.post("/admin/register", status_code=status.HTTP_202_ACCEPTED)
+def request_registration(payload: AdminRegistrationIn, db: Session = Depends(get_db)):
+    """Create a pending admin request; it grants no access until approved."""
+    email = payload.email.strip().lower()
+    if (payload.scope == "facility") != (payload.facility_id is not None):
+        raise HTTPException(status_code=422, detail="Choose exactly one matching facility.")
+    if (payload.scope == "provider") != (payload.provider_id is not None):
+        raise HTTPException(status_code=422, detail="Choose exactly one matching provider.")
+    if db.scalar(select(Admin).where(func.lower(Admin.email) == email)):
+        raise HTTPException(status_code=409, detail="An account already uses this email.")
+    if db.scalar(
+        select(AdminRegistrationRequest).where(
+            func.lower(AdminRegistrationRequest.email) == email,
+            AdminRegistrationRequest.status == "pending",
+        )
+    ):
+        raise HTTPException(status_code=409, detail="A request for this email is already pending.")
+
+    if payload.facility_id is not None and db.get(Facility, payload.facility_id) is None:
+        raise HTTPException(status_code=404, detail="Facility not found.")
+    if (
+        payload.provider_id is not None
+        and db.get(AmbulanceProvider, payload.provider_id) is None
+    ):
+        raise HTTPException(status_code=404, detail="Ambulance provider not found.")
+    try:
+        password_hash = hash_password(payload.password)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422, detail="Password must be at most 72 UTF-8 bytes."
+        ) from exc
+
+    request = AdminRegistrationRequest(
+        full_name=payload.full_name.strip(),
+        email=email,
+        password_hash=password_hash,
+        facility_id=payload.facility_id,
+        provider_id=payload.provider_id,
+    )
+    db.add(request)
+    db.commit()
+    return {
+        "status": "pending",
+        "message": (
+            "Your request was submitted. An operator must verify your affiliation "
+            "before approving access."
+        ),
+    }
 
 
 @router.post("/admin/login", response_model=TokenOut)

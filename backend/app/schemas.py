@@ -147,6 +147,19 @@ class LoginIn(BaseModel):
     password: str = Field(min_length=8, max_length=72)
 
 
+class AdminRegistrationIn(BaseModel):
+    full_name: str = Field(min_length=2, max_length=120)
+    email: str = Field(
+        min_length=3,
+        max_length=160,
+        pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$",
+    )
+    password: str = Field(min_length=12, max_length=72)
+    scope: Literal["facility", "provider"]
+    facility_id: int | None = Field(default=None, gt=0)
+    provider_id: int | None = Field(default=None, gt=0)
+
+
 class TokenOut(BaseModel):
     access_token: str
     token_type: str = "bearer"
