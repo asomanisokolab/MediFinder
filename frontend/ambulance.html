@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Ambulance providers — FindCare Ghana</title>
 <meta name="description" content="Find ambulance providers covering your area in Ghana: National Ambulance Service stations, private operators and hospital units.">
-<meta name="theme-color" content="#1a56db">
+<meta name="theme-color" content="#0b3b36">
 <link rel="icon" type="image/svg+xml" href="/images/findcareghana-icon.svg">
 <link rel="apple-touch-icon" href="/images/findcareghana-icon-180.png">
 <link rel="manifest" href="manifest.json">
@@ -29,8 +29,11 @@
   <div id="detail" hidden></div>
 
   <div id="directory">
-    <h1>Ambulance providers</h1>
+    <header class="page-head">
+      <p class="eyebrow">Ambulance directory</p>
+      <h1>Ambulance providers</h1>
     <p class="lede">Providers are matched to the area they cover, not just the nearest base station.</p>
+    </header>
 
     <div id="banner"></div>
 
@@ -40,12 +43,12 @@
     </p>
 
     <div class="actions" style="margin-bottom:12px">
-      <a class="btn" href="tel:112">Call 112</a>
+      <a class="btn danger" href="tel:112">Call 112</a>
       <button type="button" class="secondary" id="locate-btn">Find providers for my area</button>
     </div>
     <p class="notice" id="locate-status" role="status"></p>
 
-    <form id="filter-form">
+    <form id="filter-form" class="panel">
       <div class="row">
         <div class="field">
           <label for="region">Region</label>
@@ -81,21 +84,40 @@
       <h2 id="results-title">Providers</h2>
       <span class="count" id="results-count"></span>
     </div>
-    <div id="results" aria-live="polite"></div>
+    <div id="results" class="results-grid" aria-live="polite"></div>
     <div class="pager" id="pager"></div>
   </div>
 
-  <footer class="site">
-    <ul class="footer-contact">
-      <li><a href="mailto:info@findcareghana.com">info@findcareghana.com</a></li>
-      <li><a href="https://www.instagram.com/findcaregh" target="_blank" rel="noopener">Instagram</a></li>
-      <li><a href="https://x.com/findcaregh" target="_blank" rel="noopener">X</a></li>
-      <li><a href="https://www.facebook.com/findcaregh" target="_blank" rel="noopener">Facebook</a></li>
-      <li>@findcareGh</li>
-    </ul>
-    <p>FindCare Ghana · Phase 1 · In a real emergency call 112.</p>
-  </footer>
 </main>
+
+<footer class="site-footer">
+  <div class="wrap footer-grid">
+    <div class="footer-brand">
+      <img src="/images/findcareghana-logo.svg" alt="FindCare Ghana" width="170" height="36">
+      <p>Hospitals, clinics, pharmacies, ambulances, hearse services and caregivers across all 16 regions of Ghana.</p>
+    </div>
+    <div>
+      <h2 class="footer-title">Contact us</h2>
+      <ul class="footer-links">
+        <li><a href="mailto:info@findcareghana.com"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>info@findcareghana.com</a></li>
+        <li><a href="contact.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Get your facility listed</a></li>
+        <li><a href="/admin"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Facility sign in</a></li>
+      </ul>
+    </div>
+    <div>
+      <h2 class="footer-title">Follow us</h2>
+      <ul class="social">
+        <li><a href="https://www.instagram.com/findcaregh" target="_blank" rel="noopener" aria-label="FindCare Ghana on Instagram"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1.2" fill="currentColor" stroke="none"/></svg></a></li>
+        <li><a href="https://x.com/findcaregh" target="_blank" rel="noopener" aria-label="FindCare Ghana on X"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M5 4l14 16M19 4L5 20"/></svg></a></li>
+        <li><a href="https://www.facebook.com/findcaregh" target="_blank" rel="noopener" aria-label="FindCare Ghana on Facebook"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M14.5 3H13a4.5 4.5 0 0 0-4.5 4.5V10H6.5v4h2v7h4v-7h2.6l.6-4h-3.2V7.8c0-.5.4-.8.8-.8h1.2z"/></svg></a></li>
+      </ul>
+      <p class="handle">@findcareGh</p>
+    </div>
+  </div>
+  <div class="wrap footer-bottom">
+    <p>&copy; FindCare Ghana. FindCare lists providers; it does not dispatch. In a real emergency call <a href="tel:112">112</a>.</p>
+  </div>
+</footer>
 
 <script src="js/api.js"></script>
 <script src="js/ui.js"></script>

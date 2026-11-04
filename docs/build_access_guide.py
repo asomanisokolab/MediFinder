@@ -228,19 +228,44 @@ def story():
           "own new password straight away. The superadmin never sees or chooses the "
           "organization's own password."),
 
-        p("2. Setting up the superadmin password", h1),
+        p("2. Creating the superadmin", h1),
         p("Superadmins cannot be created through the website or the demo seed. An "
-          "authorized operator creates one from the Droplet shell, in the project "
-          "directory:"),
-        commands('sudo docker compose exec app python -m app.superadmins create '
-                 'owner@example.com "System Owner"'),
-        p("Replace the example email and name. <b>The command generates a strong random "
-          "password and prints it once.</b> Copy it into a password manager straight "
-          "away. It is not stored anywhere in plain text and is not emailed. Then sign "
-          "in at <b>https://findcareghana.com/superadmin</b>."),
-        p("If the superadmin password is lost, generate a replacement the same way:"),
+          "authorized operator creates one from the Droplet shell."),
+        p("Step 1: go to the project folder and run the create command", h2),
+        p("Use your own email and name:"),
+        commands('cd /opt/MediFinder\n'
+                 'sudo docker compose exec app python -m app.superadmins create '
+                 'you@findcareghana.com "Your Name"'),
+        p("Step 2: copy the password it prints", h2),
+        p("The command generates a strong random password and prints it once, like "
+          "this:"),
+        commands("Created superadmin account for you@findcareghana.com.\n"
+                 "Password (shown once -- store it in a password manager now):\n"
+                 "  mhVXnIu1-E5vz-ImKIC5I2Sr"),
+        p("<b>Copy the password straight away into a password manager.</b> It is shown "
+          "only once, is not stored anywhere in plain text, and is not emailed."),
+        p("Step 3: sign in", h2),
+        p("Open <b>https://findcareghana.com/superadmin</b> and sign in with that email "
+          "and password."),
+        p("If the superadmin password is lost", h2),
+        p("Generate a new one, printed once in the same way:"),
         commands("sudo docker compose exec app python -m app.superadmins reset-password "
-                 "owner@example.com"),
+                 "you@findcareghana.com"),
+        p("If something goes wrong", h2),
+        grid([
+            ("An account already uses this email",
+             "That email is already a superadmin or an organization login. Use "
+             "reset-password if it is your superadmin account, or choose another email."),
+            ("service \"app\" is not running",
+             "Start the app with <font name='Courier'>sudo docker compose up -d</font>, "
+             "then run the create command again."),
+            ("no configuration file provided",
+             "You are in the wrong folder. Run "
+             "<font name='Courier'>cd /opt/MediFinder</font> first."),
+        ], [2.2 * inch, 4.8 * inch]),
+        Spacer(1, 8),
+        p("You can create more superadmins the same way, one email each. Give this "
+          "access only to people trusted with every account and listing."),
 
         p("3. What the superadmin can manage", h1),
         p("The protected <b>/superadmin</b> dashboard is the system-wide management "
