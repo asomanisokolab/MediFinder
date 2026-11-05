@@ -347,11 +347,33 @@ def test_superadmin_can_manage_directory_and_review_changes():
     overview = client.get(f"{API}/superadmin/overview", headers=super_headers)
     check("superadmin overview loads", overview.status_code == 200)
     content = overview.json()
-    check("superadmin sees facilities and providers", len(content["facilities"]) >= 50
-          and len(content["providers"]) >= 20)
+    check("superadmin overview counts the directory", content["stats"]["facilities"] >= 50
+          and content["stats"]["providers"] >= 20)
     check("superadmin sees organization admins", len(content["admins"]) >= 2)
 
-    facility = content["facilities"][0]
+    facilities = client.get(f"{API}/superadmin/facilities", headers=super_headers).json()
+    providers = client.get(f"{API}/superadmin/providers", headers=super_headers).json()
+    check("superadmin directory search is paged",
+          len(facilities["items"]) == 20 and facilities["total"] == content["stats"]["facilities"])
+    check("directory search needs a superadmin",
+          client.get(f"{API}/superadmin/facilities").status_code == 401)
+    town = client.get(f"{API}/superadmin/facilities", headers=super_headers,
+                      params={"q": "koforidua", "category": "clinic"}).json()
+    check("superadmin can search by town and category",
+          town["total"] > 0 and all(f["category"] == "clinic" for f in town["items"]))
+    district = client.get(f"{API}/superadmin/facilities", headers=super_headers,
+                          params={"region": "Eastern", "district": "Kwahu South"}).json()
+    check("superadmin can filter by region and district",
+          district["total"] > 0 and all(f["district"] == "Kwahu South" for f in district["items"]))
+    by_id = client.get(f"{API}/superadmin/facilities", headers=super_headers,
+                       params={"q": str(facilities["items"][0]["id"])}).json()
+    check("superadmin can find a facility by ID",
+          by_id["items"][0]["id"] == facilities["items"][0]["id"])
+    hidden = client.get(f"{API}/superadmin/facilities", headers=super_headers,
+                        params={"location": "missing"}).json()
+    check("hidden listings can be found", all(not f["location_confirmed"] for f in hidden["items"]))
+
+    facility = facilities["items"][0]
     facility_payload = {
         "name": f"{facility['name']} (managed test)",
         "type": facility["type"],
@@ -404,7 +426,7 @@ def test_superadmin_can_manage_directory_and_review_changes():
         ).status_code == 422,
     )
 
-    provider = content["providers"][0]
+    provider = providers["items"][0]
     provider_payload = {
         "name": f"{provider['name']} (managed test)",
         "operator_type": provider["operator_type"],
@@ -865,6 +887,137 @@ def test_launch_checklist_pages():
     check("home page links to privacy and terms",
           'href="/privacy.html"' in home and 'href="/terms.html"' in home)
     check("home page has the sticky phone shortcuts", 'class="mobile-cta"' in home)
+
+
+def test_search_by_place_and_by_name():
+    place = client.get(f"{API}/facilities/search", params={"q": "koforidua", "page_size": 100}).json()
+    check("a town name is recognised as a place", place["matched_place"] == "Koforidua")
+    in_town = [f for f in place["items"] if f["city"] == "Koforidua" or f["town"] == "Koforidua"]
+    check("the place's own facilities are counted", place["place_total"] == len(in_town) > 10)
+    check("the place's facilities come before ones only named after it",
+          all(f in in_town for f in place["items"][:len(in_town)]))
+
+    named = client.get(f"{API}/facilities/search", params={"q": "Atibie Government Hospital"}).json()
+    check("a facility's full name finds it",
+          [f["name"] for f in named["items"]] == ["Atibie Government Hospital"])
+    check("a facility name is not taken for a place", named["matched_place"] is None)
+
+    words = client.get(f"{API}/facilities/search", params={"q": "korle bu hospital"}).json()
+    check("every word is matched, not the exact phrase",
+          words["items"] and words["items"][0]["name"] == "Korle Bu Teaching Hospital")
+    plural = client.get(f"{API}/facilities/search", params={"q": "clinics in ho", "page_size": 100}).json()
+    check("plurals and filler words are understood",
+          plural["total"] > 0 and all("clinic" in f["name"].lower() for f in plural["items"]))
+
+    suggest = client.get(f"{API}/facilities/suggest", params={"q": "kofor"}).json()
+    check("suggestions list the place first", suggest["places"][0]["name"] == "Koforidua")
+    check("suggestions list matching facilities",
+          any(f["name"].startswith("Koforidua") for f in suggest["facilities"]))
+    check("suggestions need two letters",
+          client.get(f"{API}/facilities/suggest", params={"q": "k"}).status_code == 422)
+
+
+def test_laboratories_and_offerings():
+    labs = client.get(f"{API}/facilities/search", params={"category": "laboratory", "page_size": 100}).json()
+    categories = {f["category"] for f in labs["items"]}
+    check("standalone laboratories are their own category", "laboratory" in categories)
+    check("the laboratory filter also finds hospitals and clinics with a lab",
+          categories & {"hospital", "clinic"} != set()
+          and all("laboratory" in f["care_types"] for f in labs["items"]))
+    kinds = {c["value"]: c for c in client.get(f"{API}/care-types").json()}
+    check("care types include laboratory with its usual tests",
+          "Malaria test" in kinds["laboratory"]["services"])
+
+    login = client.post(
+        f"{API}/admin/login", json={"email": "facility@medifinder.gh", "password": "changeme123"}
+    ).json()
+    headers = {"Authorization": f"Bearer {login['access_token']}"}
+    facility_id = login["facility_id"]
+    original = client.get(f"{API}/facilities/{facility_id}").json()["service_detail"]
+
+    wanted = [
+        {"service_name": "Accident and Emergency", "care_type": "hospital", "is_active": True},
+        {"service_name": "Laboratory", "care_type": "laboratory", "is_active": True},
+        {"service_name": "Malaria test", "care_type": "laboratory", "is_active": True},
+        {"service_name": "Full blood count", "care_type": "laboratory", "is_active": False},
+    ]
+    check("offerings need a signed-in facility",
+          client.put(f"{API}/facilities/{facility_id}/offerings",
+                     json={"services": wanted}).status_code == 401)
+    check("offerings cannot be written to another facility",
+          client.put(f"{API}/facilities/{facility_id + 1}/offerings",
+                     json={"services": wanted}, headers=headers).status_code == 403)
+    twice = wanted + [{"service_name": "malaria test", "care_type": "hospital", "is_active": True}]
+    check("a service cannot be listed under two kinds of care",
+          client.put(f"{API}/facilities/{facility_id}/offerings",
+                     json={"services": twice}, headers=headers).status_code == 422)
+
+    saved = client.put(f"{API}/facilities/{facility_id}/offerings",
+                       json={"services": wanted}, headers=headers)
+    check("offerings save", saved.status_code == 200)
+    check("the hospital now lists a laboratory", saved.json()["care_types"] == ["hospital", "laboratory"])
+    profile = client.get(f"{API}/facilities/{facility_id}").json()
+    by_name = {s["service_name"]: s for s in profile["service_detail"]}
+    check("services left out are removed", set(by_name) == {s["service_name"] for s in wanted})
+    check("each service keeps its kind of care", by_name["Malaria test"]["care_type"] == "laboratory")
+    check("a paused service is kept but inactive", by_name["Full blood count"]["is_active"] is False)
+    found = client.get(f"{API}/facilities/search", params={"q": "malaria test"}).json()["items"]
+    check("search finds a facility by one of its services", any(f["id"] == facility_id for f in found))
+
+    restore = client.put(f"{API}/facilities/{facility_id}/offerings", headers=headers, json={
+        "services": [
+            {"service_name": s["service_name"], "care_type": s["care_type"], "is_active": s["is_active"]}
+            for s in original
+        ],
+    })
+    check("original services restored", restore.status_code == 200)
+
+
+def test_busy_status():
+    from app.models import BusyReport
+
+    items = client.get(f"{API}/facilities/search", params={"q": "Atibie Government Hospital"}).json()["items"]
+    facility_id = items[0]["id"]
+    with SessionLocal() as db:  # earlier runs' reports would trip the 20 minute limit
+        db.query(BusyReport).filter(BusyReport.facility_id == facility_id).delete()
+        db.commit()
+
+    busy = client.get(f"{API}/facilities/{facility_id}").json()["busy"]
+    check("a facility has a busy status", busy["level"] in ("busy", "less_busy", "not_busy", "unknown"))
+    check("with no reports the status is a prediction or the opening hours",
+          busy["source"] in ("predicted", "hours"))
+    check("search results carry the busy status", items[0]["busy"] is not None)
+    hearse = client.get(f"{API}/facilities", params={"category": "hearse"}).json()["items"]
+    check("hearse services have no busy status", hearse and all(f["busy"] is None for f in hearse))
+
+    report = client.post(f"{API}/facilities/{facility_id}/busy-reports", json={"level": "not_busy"})
+    check("a visitor can report how busy it is", report.status_code == 201)
+    check("a visitor report sets the status",
+          report.json()["source"] == "visitors" and report.json()["level"] == "not_busy")
+    check("the same visitor cannot report again straight away",
+          client.post(f"{API}/facilities/{facility_id}/busy-reports",
+                      json={"level": "busy"}).status_code == 429)
+    check("an unknown level is refused",
+          client.post(f"{API}/facilities/{facility_id}/busy-reports",
+                      json={"level": "packed"}).status_code == 422)
+
+    login = client.post(
+        f"{API}/admin/login", json={"email": "facility@medifinder.gh", "password": "changeme123"}
+    ).json()
+    headers = {"Authorization": f"Bearer {login['access_token']}"}
+    own = login["facility_id"]
+    check("staff busy updates need sign-in",
+          client.put(f"{API}/facilities/{own}/busy", json={"level": "busy"}).status_code == 401)
+    check("staff cannot set another facility's status",
+          client.put(f"{API}/facilities/{facility_id}/busy", json={"level": "busy"},
+                     headers=headers).status_code == 403)
+    staff = client.put(f"{API}/facilities/{own}/busy", json={"level": "busy"}, headers=headers)
+    check("staff can say how busy they are", staff.status_code == 200)
+    check("the staff answer is shown as theirs",
+          staff.json()["source"] == "facility" and staff.json()["level"] == "busy")
+    with SessionLocal() as db:
+        db.query(BusyReport).filter(BusyReport.facility_id.in_([facility_id, own])).delete()
+        db.commit()
 
 
 def main() -> int:

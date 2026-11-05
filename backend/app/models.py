@@ -11,10 +11,12 @@ from sqlalchemy import (
     Text,
     String,
     UniqueConstraint,
+    event,
 )
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, Session, mapped_column, relationship
 
 from .database import Base
+from .reference import default_care_type
 
 
 def utcnow() -> datetime:
@@ -30,7 +32,7 @@ class Facility(Base):
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     # "government" | "private"  (PRD 5.1.1)
     type: Mapped[str] = mapped_column(String(20), nullable=False)
-    # reference.FACILITY_CATEGORIES: hospital, clinic, pharmacy, hearse, caregiver
+    # reference.FACILITY_CATEGORIES: hospital, clinic, laboratory, pharmacy, hearse, caregiver
     category: Mapped[str] = mapped_column(String(30), nullable=False, default="hospital")
     # Level A..F | Private       (PRD 5.1.5)
     classification: Mapped[str] = mapped_column(String(40), nullable=False)
@@ -105,6 +107,9 @@ class Service(Base):
     # PRD v1.1 5.1.3: "Dental" is simply a value here -- no schema change.
     service_name: Mapped[str] = mapped_column(String(80), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # A key of reference.CARE_TYPES: which part of the facility offers it
+    # (a hospital's laboratory, its pharmacy). Filled in on insert when blank.
+    care_type: Mapped[str] = mapped_column(String(30), default="")
 
     facility = relationship("Facility", back_populates="services")
 
@@ -112,6 +117,42 @@ class Service(Base):
 
 
 Index("ix_services_name", Service.service_name)
+Index("ix_services_care_type", Service.care_type)
+
+
+@event.listens_for(Session, "before_flush")
+def _default_care_type(session, _context, _instances):
+    for obj in session.new:
+        if isinstance(obj, Service) and not obj.care_type:
+            facility = obj.facility or (
+                session.get(Facility, obj.facility_id) if obj.facility_id else None
+            )
+            category = facility.category if facility is not None else "hospital"
+            obj.care_type = default_care_type(obj.service_name, category)
+
+
+class BusyReport(Base):
+    """One "how busy is it?" answer: from the facility's own staff, or from
+    someone there. busyness.py turns these into the red/yellow/green status
+    and learns each facility's usual pattern from them."""
+
+    __tablename__ = "busy_reports"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    facility_id: Mapped[int] = mapped_column(
+        ForeignKey("facilities.id", ondelete="CASCADE"), nullable=False
+    )
+    # 0 not busy, 1 less busy, 2 busy
+    level: Mapped[int] = mapped_column(Integer, nullable=False)
+    # "facility" (signed-in staff) | "visitor"
+    source: Mapped[str] = mapped_column(String(20), nullable=False)
+    # Hash of the visitor's address and the facility, to stop one person
+    # repeating a report. Never the address itself.
+    client_key: Mapped[str] = mapped_column(String(64), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+Index("ix_busy_reports_facility_time", BusyReport.facility_id, BusyReport.created_at)
 
 
 class Insurance(Base):

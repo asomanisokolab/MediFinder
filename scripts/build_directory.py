@@ -147,8 +147,33 @@ SPECIALITY_SERVICES = {
 }
 
 
+# A name that says the place does lab work, and one that says it also sees
+# patients ("Patbrenda Clinic & Laboratory").
+LAB_WORDS = re.compile(r"\b(labs?|laborator(y|ies)|diagnostics?|diagnosis)\b", re.I)
+CARE_WORDS = re.compile(
+    r"\b(hospital|clinic|polic?linic|medical cent(re|er)|health cent(re|er)|maternity|CHPS|"
+    r"pharmacy|chemists?|drug store)\b", re.I)
+
+
 def classify(tags, name):
-    """Returns (category, extra services) or None to skip the place."""
+    """Returns (category, extra services) or None to skip the place.
+
+    A place that only does lab work is a "laboratory". A hospital, clinic or
+    pharmacy with a lab keeps its category and gains the Laboratory service.
+    """
+    kind = _classify(tags, name)
+    if kind is None:
+        return None
+    category, services = kind
+    lab = tags.get("healthcare") == "laboratory" or LAB_WORDS.search(name)
+    if lab and category in ("hospital", "clinic") and not CARE_WORDS.search(name):
+        return "laboratory", ["Laboratory"]
+    if lab and category in ("hospital", "clinic", "pharmacy") and "Laboratory" not in services:
+        services = services + ["Laboratory"]
+    return category, services
+
+
+def _classify(tags, name):
     amenity = tags.get("amenity", "")
     healthcare = tags.get("healthcare", "")
     if amenity == "pharmacy" or healthcare == "pharmacy" or tags.get("shop") in ("chemist", "medical_supply"):
@@ -174,7 +199,7 @@ def classify(tags, name):
     if healthcare in ("optometrist",):
         return "clinic", ["Eye Care"]
     if healthcare == "laboratory":
-        return "clinic", ["Laboratory"]
+        return "clinic", ["Outpatient"] if CARE_WORDS.search(name) else []
     if healthcare == "physiotherapist":
         return "clinic", ["Physiotherapy"]
     if amenity in ("clinic", "doctors", "health_post") or healthcare in (

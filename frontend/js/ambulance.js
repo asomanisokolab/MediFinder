@@ -5,6 +5,7 @@ const view = {
   detail: document.getElementById('detail'),
   results: document.getElementById('results'),
   count: document.getElementById('results-count'),
+  feedback: document.getElementById('results-feedback'),
   title: document.getElementById('results-title'),
   pager: document.getElementById('pager'),
   region: document.getElementById('region'),
@@ -152,9 +153,13 @@ async function loadProviders() {
       view.title.textContent = 'Providers covering your area';
       view.count.textContent = `${body.items.length} shown`;
       if (!body.items.length) {
+        feedback(view.feedback, 'empty', 'No ambulance provider is listed for your area yet. Call 112.');
         showEmpty(view.results, 'No provider listed for your area yet. Call 112.');
         return;
       }
+      feedback(view.feedback, 'ok', body.items.length === 1
+        ? 'Found 1 provider covering your area, nearest first.'
+        : `Found ${body.items.length} providers covering your area, nearest first.`);
       clear(view.results);
       body.items.forEach((p) => view.results.appendChild(ambulanceCard(p)));
       return;
@@ -173,9 +178,14 @@ async function loadProviders() {
     view.title.textContent = 'Providers';
     view.count.textContent = body.total === 1 ? '1 provider' : `${body.total} providers`;
     if (!body.items.length) {
+      feedback(view.feedback, 'empty', 'No providers match those filters. Try another region or clear the search.');
       showEmpty(view.results, 'No providers match those filters.');
       return;
     }
+    const typed = view.q.value.trim();
+    const where = view.region.value ? ` in ${view.region.value}` : '';
+    feedback(view.feedback, 'ok', `Found ${body.total === 1 ? '1 provider' : `${body.total} providers`}` +
+      `${typed ? ` for “${typed}”` : ''}${where}.`);
     clear(view.results);
     body.items.forEach((p) => view.results.appendChild(ambulanceCard(p)));
 
@@ -196,12 +206,16 @@ async function loadProviders() {
     }
   } catch (err) {
     showError(view.results, err.message);
+    feedback(view.feedback, 'error', `Could not load providers: ${err.message}`, {
+      label: 'Try again',
+      onClick: loadProviders,
+    });
   }
 }
 
 async function locate() {
-  view.locateBtn.disabled = true;
-  view.locateStatus.textContent = 'Finding your location…';
+  setLoading(view.locateBtn, true, 'Finding your location…');
+  view.locateStatus.textContent = '';
   try {
     st.coords = await Location.request({ useCache: false });
     st.covering = true;
@@ -210,9 +224,10 @@ async function locate() {
     await loadProviders();
   } catch (err) {
     view.locateStatus.textContent = err.message;
+    feedback(view.feedback, 'error', err.message);
     view.region.focus();
   } finally {
-    view.locateBtn.disabled = false;
+    setLoading(view.locateBtn, false);
   }
 }
 

@@ -138,11 +138,13 @@ def story():
         p("Who uses FindCare?", h1),
         grid([
             ("Public visitors",
-             "Search for hospitals, clinics, pharmacies and medical stores, ambulance "
-             "services, hearse services and caregivers. No account is needed."),
+             "Search for hospitals, clinics, laboratories, pharmacies and medical "
+             "stores, ambulance services, hearse services and caregivers, and see how "
+             "busy each one is. No account is needed."),
             ("Organization admin",
              "Staff of one listed organization. They sign in to keep that listing "
-             "up to date: beds, services, fleet, map location and their own password."),
+             "up to date: how busy it is, what it offers, beds, fleet, map location "
+             "and their own password."),
             ("Superadmin",
              "Oversees the whole system: reviews contact requests, creates listings "
              "and logins, manages directory records and organization admins, and "
@@ -168,8 +170,9 @@ def story():
         p("On the public site, the organization opens <b>Contact us</b> and sends its "
           "facility name, type, phone number and email, with an optional contact name "
           "and message. The types are: Hospital (government), Hospital (private), "
-          "Clinic, Pharmacy / medical store, Ambulance service, Hearse service and "
-          "Caregiver. A request does not create an account."),
+          "Clinic, Laboratory / diagnostic centre, Pharmacy / medical store, "
+          "Ambulance service, Hearse service and Caregiver. A request does not "
+          "create an account."),
         p("Step 2: the superadmin checks and approves", h2),
         *steps(
             "Open <b>/superadmin</b> and find the request under <b>Contact requests</b>.",
@@ -206,8 +209,13 @@ def story():
             "latitude and longitude from Google Maps, or press <b>Use this device's "
             "location</b> while standing at the entrance. Points outside Ghana are "
             "rejected.",
-            "It keeps its listing current: bed counts and services for hospitals and "
-            "clinics, fleet availability for ambulance services.",
+            "It keeps its listing current. <b>How busy are you right now?</b> sets "
+            "the red, yellow or green status the public sees for the next 3 hours. "
+            "<b>What you offer</b> has a <b>Kinds of care</b> dropdown (Hospital, "
+            "Clinic, Laboratory, Pharmacy, Scan and X-ray and more; tick every one that "
+            "applies) and the services under each, picked from suggestions or typed in. "
+            "Hospitals and clinics also update bed counts; ambulance services update "
+            "fleet availability.",
         ),
         p("<b>A new listing is hidden from public search and emergency mode until its "
           "location is set</b>, so no one is sent to a guessed position. If the "
@@ -330,9 +338,10 @@ def story():
           "Google Maps was not copied, because its terms forbid it."),
         grid([
             ("What is included",
-             "About 1,050 pharmacies and chemical sellers, about 950 clinics (including "
-             "CHPS compounds and health centres), about 365 hospitals, a few funeral "
-             "homes (hearse services) and care homes."),
+             "About 1,050 pharmacies and chemical sellers, about 920 clinics (including "
+             "CHPS compounds and health centres), about 365 hospitals, 32 laboratories "
+             "and diagnostic centres, a few funeral homes (hearse services) and care "
+             "homes."),
             ("Where each one is",
              "Exact GPS position, region, district (metropolitan, municipal or district "
              "assembly), city or town, and community. All 16 regions are covered. The "
@@ -343,6 +352,7 @@ def story():
             ("Services",
              "Only what the place is known to be: pharmacy, dentist, laboratory, eye "
              "care, outpatient, or antenatal care and immunisation for CHPS compounds. "
+             "A clinic or pharmacy whose name says it has a lab also lists Laboratory. "
              "Nothing is guessed."),
             ("Coverage gaps",
              "Busy cities are well mapped. Rural areas, and the North East and Savannah "

@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from .. import busyness
 from ..config import settings
 from ..database import get_db
 from ..geo import bounding_box, distance_km_expr, valid_coordinates
@@ -68,7 +69,9 @@ def _nearest_facilities(db: Session, lat: float, lng: float, limit: int) -> list
             if len(rows) >= limit:
                 break
 
-    return [facility_summary(f, d) for f, d in rows[:limit]]
+    rows = rows[:limit]
+    busy = busyness.statuses(db, [f for f, _ in rows])
+    return [facility_summary(f, d, busy.get(f.id)) for f, d in rows]
 
 
 @router.get("", response_model=EmergencyOut)
@@ -108,6 +111,7 @@ def emergency(
         .order_by(Facility.is_24_hour.desc(), Facility.verified.desc(), Facility.name.asc())
         .limit(limit)
     ).all()
+    busy = busyness.statuses(db, facilities)
     providers = db.scalars(
         select(AmbulanceProvider)
         .where(
@@ -124,7 +128,7 @@ def emergency(
         "emergency_number": settings.NATIONAL_EMERGENCY_NUMBER,
         "notice": notice,
         "data_verified": settings.DATA_VERIFIED,
-        "facilities": [facility_summary(f) for f in facilities],
+        "facilities": [facility_summary(f, None, busy.get(f.id)) for f in facilities],
         "ambulance_providers": [
             ambulance_summary(p, covers_user_area=True) for p in providers
         ],

@@ -24,6 +24,7 @@ const TYPES: Option[] = [
   { value: 'hospital_government', label: 'Hospital (government)' },
   { value: 'hospital_private', label: 'Hospital (private)' },
   { value: 'clinic', label: 'Clinic' },
+  { value: 'laboratory', label: 'Laboratory / diagnostic centre' },
   { value: 'pharmacy', label: 'Pharmacy / medical store' },
   { value: 'ambulance', label: 'Ambulance service' },
   { value: 'hearse', label: 'Hearse service' },

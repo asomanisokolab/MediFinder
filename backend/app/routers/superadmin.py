@@ -1,8 +1,8 @@
 """Superadmin login and system-wide administration."""
 import json
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from sqlalchemy import delete, func, select, update
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from sqlalchemy import and_, case, delete, func, or_, select, update
 from sqlalchemy.orm import Session
 
 from ..config import settings
@@ -27,6 +27,7 @@ from ..reference import (
     ORGANIZATION_TYPES,
     REGION_CENTROIDS,
     UNCLASSIFIED,
+    default_care_type,
     in_ghana,
 )
 from ..schemas import (
@@ -35,6 +36,7 @@ from ..schemas import (
     SuperadminFacilityUpdateIn,
     SuperadminProviderUpdateIn,
 )
+from .facilities import _word_like, _words
 from ..security import (
     create_superadmin_access_token,
     generate_password,
@@ -135,6 +137,13 @@ def _record_directory_change(
     )
 
 
+def _carried_care_type(previous: str | None, old_category: str, new_category: str) -> str:
+    """A service's care type after an edit that may change the category."""
+    if not previous:
+        return ""
+    return new_category if previous == old_category else previous
+
+
 def _facility_snapshot(facility: Facility) -> dict:
     return {
         "name": facility.name,
@@ -143,6 +152,7 @@ def _facility_snapshot(facility: Facility) -> dict:
         "classification": facility.classification,
         "address": facility.address,
         "region": facility.region,
+        "district": facility.district,
         "city": facility.city,
         "town": facility.town,
         "lat": facility.lat,
@@ -255,6 +265,137 @@ def login(payload: LoginIn, db: Session = Depends(get_db)):
     }
 
 
+def _paged(db: Session, model, conds, order, page_no: int, page_size: int, present) -> dict:
+    total = db.scalar(select(func.count(model.id)).where(*conds)) or 0
+    rows = db.scalars(
+        select(model).where(*conds).order_by(*order)
+        .offset((page_no - 1) * page_size).limit(page_size)
+    ).all()
+    return {
+        "items": [present(row) for row in rows],
+        "total": total,
+        "page": page_no,
+        "page_size": page_size,
+        "pages": (total + page_size - 1) // page_size,
+    }
+
+
+def _matches_text(q: str | None, id_column, text_columns):
+    """Every word must appear in one of the columns; a number also finds the ID."""
+    if not q or not q.strip():
+        return []
+    phrase = q.strip()
+    word_conds = [
+        or_(*(_word_like(column, word) for column in text_columns))
+        for word in _words(phrase)
+    ]
+    if phrase.isdigit():
+        return [or_(id_column == int(phrase), and_(*word_conds))]
+    return word_conds
+
+
+def _yes_no(column, value: str | None):
+    if value == "yes":
+        return [column.is_(True)]
+    if value == "no":
+        return [column.is_(False)]
+    return []
+
+
+@router.get("/facilities")
+def search_facilities(
+    q: str | None = Query(None, max_length=120,
+                          description="Name, ID, community, town, district or region"),
+    region: str | None = None,
+    district: str | None = None,
+    city: str | None = None,
+    category: str | None = None,
+    facility_type: str | None = Query(None, alias="type"),
+    verified: str | None = Query(None, pattern="^(yes|no)$"),
+    location: str | None = Query(None, pattern="^(set|missing)$"),
+    managed: str | None = Query(None, pattern="^(yes|no)$"),
+    page_no: int = Query(1, ge=1, alias="page"),
+    page_size: int = Query(20, ge=1, le=100),
+    _admin: SuperAdmin = Depends(get_current_superadmin),
+    db: Session = Depends(get_db),
+):
+    """Every facility, including ones hidden until their location is set."""
+    conds = _matches_text(q, Facility.id, (
+        Facility.name, Facility.town, Facility.city, Facility.district, Facility.region,
+        Facility.address, Facility.phone,
+    ))
+    for column, value in ((Facility.region, region), (Facility.district, district),
+                          (Facility.city, city)):
+        if value:
+            conds.append(func.lower(column) == value.strip().lower())
+    if category:
+        conds.append(Facility.category == category)
+    if facility_type:
+        conds.append(Facility.type == facility_type)
+    conds += _yes_no(Facility.verified, verified)
+    if location:
+        conds.append(Facility.location_confirmed.is_(location == "set"))
+    managed_ids = select(Admin.facility_id).where(Admin.facility_id.isnot(None))
+    if managed == "yes":
+        conds.append(Facility.id.in_(managed_ids))
+    elif managed == "no":
+        conds.append(Facility.id.not_in(managed_ids))
+
+    order = [Facility.name.asc(), Facility.id.asc()]
+    if q and q.strip():
+        name = func.lower(Facility.name)
+        phrase = q.strip().lower()
+        order.insert(0, case_rank(name, phrase))
+    result = _paged(db, Facility, conds, order, page_no, page_size, _facility_admin_detail)
+    with_admin = set(db.scalars(managed_ids.where(
+        Admin.facility_id.in_([f["id"] for f in result["items"]])
+    )))
+    for item in result["items"]:
+        item["managed"] = item["id"] in with_admin
+    return result
+
+
+@router.get("/providers")
+def search_providers(
+    q: str | None = Query(None, max_length=120),
+    region: str | None = None,
+    district: str | None = None,
+    operator_type: str | None = None,
+    service_level: str | None = None,
+    verified: str | None = Query(None, pattern="^(yes|no)$"),
+    location: str | None = Query(None, pattern="^(set|missing)$"),
+    page_no: int = Query(1, ge=1, alias="page"),
+    page_size: int = Query(20, ge=1, le=100),
+    _admin: SuperAdmin = Depends(get_current_superadmin),
+    db: Session = Depends(get_db),
+):
+    conds = _matches_text(q, AmbulanceProvider.id, (
+        AmbulanceProvider.name, AmbulanceProvider.district, AmbulanceProvider.region,
+        AmbulanceProvider.base_address, AmbulanceProvider.phone,
+    ))
+    for column, value in ((AmbulanceProvider.region, region),
+                          (AmbulanceProvider.district, district)):
+        if value:
+            conds.append(func.lower(column) == value.strip().lower())
+    if operator_type:
+        conds.append(AmbulanceProvider.operator_type == operator_type)
+    if service_level:
+        conds.append(AmbulanceProvider.service_level == service_level)
+    conds += _yes_no(AmbulanceProvider.verified, verified)
+    if location:
+        conds.append(AmbulanceProvider.location_confirmed.is_(location == "set"))
+    order = [AmbulanceProvider.name.asc(), AmbulanceProvider.id.asc()]
+    if q and q.strip():
+        order.insert(0, case_rank(func.lower(AmbulanceProvider.name), q.strip().lower()))
+    return _paged(db, AmbulanceProvider, conds, order, page_no, page_size,
+                  _provider_admin_detail)
+
+
+def case_rank(name, phrase: str):
+    """Exact name first, then names starting with the text."""
+    return case((name == phrase, 0), (name.like(f"{phrase}%"), 1), else_=2)
+
+
 @router.put("/facilities/{facility_id}")
 def update_facility(
     facility_id: int,
@@ -301,10 +442,16 @@ def update_facility(
         )
 
     before = _facility_snapshot(facility)
+    # The editor sends names only. Keep each service's care type, moving the
+    # ones filed under the old category to the new one.
+    old_category = facility.category
+    old_care_types = {s.service_name.casefold(): s.care_type for s in facility.services}
     moved = (payload.lat, payload.lng) != (facility.lat, facility.lng)
     fields = payload.model_dump(
         exclude={"services", "insurance", "total_beds", "available_beds"}
     )
+    if fields.get("district") is None:
+        fields.pop("district", None)  # older clients do not send it
     for field, value in fields.items():
         setattr(facility, field, value)
     if moved:
@@ -319,6 +466,11 @@ def update_facility(
         Service(
             service_name=name,
             is_active=item.is_active,
+            care_type=(
+                item.care_type
+                or _carried_care_type(old_care_types.get(name.casefold()), old_category, facility.category)
+                or default_care_type(name, facility.category)
+            ),
         )
         for name, item in zip(service_names, payload.services)
     ]
@@ -527,16 +679,20 @@ def overview(
             for item in contact_requests
         ],
         "admins": admin_items,
-        "facilities": [
-            _facility_admin_detail(facility)
-            for facility in db.scalars(select(Facility).order_by(Facility.name)).all()
-        ],
-        "providers": [
-            _provider_admin_detail(provider)
-            for provider in db.scalars(
-                select(AmbulanceProvider).order_by(AmbulanceProvider.name)
-            ).all()
-        ],
+        # The directory itself is searched page by page through
+        # /superadmin/facilities and /superadmin/providers.
+        "stats": {
+            "facilities": db.scalar(select(func.count(Facility.id))) or 0,
+            "providers": db.scalar(select(func.count(AmbulanceProvider.id))) or 0,
+            "unverified_facilities": db.scalar(
+                select(func.count(Facility.id)).where(Facility.verified.is_(False))
+            ) or 0,
+            "hidden_facilities": db.scalar(
+                select(func.count(Facility.id)).where(Facility.location_confirmed.is_(False))
+            ) or 0,
+            "pending_requests": len(contact_requests),
+            "admins": len(admin_items),
+        },
         "changes": [
             {
                 "id": change.id,

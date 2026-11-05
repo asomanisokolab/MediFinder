@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>FindCare Ghana — Find medical facilities and ambulances</title>
 <meta name="description" content="Find hospitals, clinics, dental care and ambulance providers across all 16 regions of Ghana. Search by location, service and insurance.">
 <meta name="theme-color" content="#0b3b36">
@@ -96,11 +96,23 @@
 
   <section class="panel" aria-labelledby="search-title">
   <h2 id="search-title">Search</h2>
-  <form id="search-form">
-    <div class="field">
-      <label for="q">Facility name, community, town or district</label>
-      <input type="text" id="q" name="q" autocomplete="off" placeholder="e.g. Korle Bu, Tamale, Ho">
+  <form id="search-form" role="search" autocomplete="off">
+    <label for="q">Facility name or place</label>
+    <div class="searchbar">
+      <div class="search-box">
+        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input type="search" id="q" name="q" enterkeyhint="search" spellcheck="false"
+               placeholder="e.g. Koforidua or Atibie Government Hospital"
+               role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="suggestions"
+               aria-describedby="search-hint">
+        <ul id="suggestions" class="suggestions" role="listbox" aria-label="Suggestions" hidden></ul>
+      </div>
+      <button type="submit" id="search-btn" class="search-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <span>Search</span>
+      </button>
     </div>
+    <p class="hint" id="search-hint">Type a town to see everything in it, or a facility&rsquo;s name to find that facility.</p>
 
     <div class="field">
       <label for="category">Looking for</label>
@@ -108,7 +120,12 @@
         <option value="">All types of care</option>
         <option value="hospital">Hospitals</option>
         <option value="clinic">Clinics</option>
+        <option value="laboratory">Laboratories</option>
         <option value="pharmacy">Pharmacies and medical stores</option>
+        <option value="imaging">Scan and X-ray</option>
+        <option value="dental">Dental care</option>
+        <option value="eye">Eye care</option>
+        <option value="maternity">Maternity</option>
         <option value="hearse">Hearse services</option>
         <option value="caregiver">Caregivers</option>
       </select>
@@ -135,10 +152,10 @@
       </div>
     </div>
 
-    <div class="row">
-      <button type="submit">Search</button>
-      <button type="button" class="secondary" id="locate-btn">Use my location</button>
-    </div>
+    <button type="button" class="secondary locate-btn" id="locate-btn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="7"/></svg>
+      <span>Use my location</span>
+    </button>
     <p class="notice" id="locate-status" role="status"></p>
 
     <details class="filters">
@@ -188,7 +205,9 @@
     <h2 id="results-title">Facilities</h2>
     <span class="count" id="results-count"></span>
   </div>
-  <div id="results" class="results-grid" aria-live="polite"></div>
+  <div id="search-feedback" class="feedback" role="status" aria-live="polite" hidden></div>
+  <div id="busy-legend"></div>
+  <div id="results" class="results-grid"></div>
   <div class="pager" id="pager"></div>
 
 </main>

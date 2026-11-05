@@ -8,6 +8,7 @@ from datetime import timedelta
 
 from .config import settings
 from .models import AmbulanceProvider, Facility, utcnow
+from .reference import CARE_TYPES
 
 NOT_UPDATED = "Not updated"
 
@@ -62,7 +63,18 @@ def fleet_out(provider: AmbulanceProvider) -> dict:
     }
 
 
-def facility_summary(facility: Facility, distance_km: float | None = None) -> dict:
+def care_types(facility: Facility) -> list[str]:
+    """The facility's category, then the other kinds of care its active
+    services fall under, in reference.CARE_TYPES order."""
+    offered = {s.care_type for s in facility.services if s.is_active and s.care_type}
+    return [facility.category] + [
+        key for key in CARE_TYPES if key in offered and key != facility.category
+    ]
+
+
+def facility_summary(
+    facility: Facility, distance_km: float | None = None, busy: dict | None = None
+) -> dict:
     return {
         "id": facility.id,
         "name": facility.name,
@@ -82,12 +94,16 @@ def facility_summary(facility: Facility, distance_km: float | None = None) -> di
         "last_verified": facility.last_verified,
         "distance_km": round(distance_km, 1) if distance_km is not None else None,
         "services": sorted(s.service_name for s in facility.services if s.is_active),
+        "care_types": care_types(facility),
         "beds": beds_out(facility),
+        "busy": busy,
     }
 
 
-def facility_detail(facility: Facility, distance_km: float | None = None) -> dict:
-    data = facility_summary(facility, distance_km)
+def facility_detail(
+    facility: Facility, distance_km: float | None = None, busy: dict | None = None
+) -> dict:
+    data = facility_summary(facility, distance_km, busy)
     data.update(
         {
             "address": facility.address,
@@ -99,7 +115,11 @@ def facility_detail(facility: Facility, distance_km: float | None = None) -> dic
             "insurance": sorted(i.insurance_name for i in facility.insurance),
             "service_detail": sorted(
                 (
-                    {"service_name": s.service_name, "is_active": s.is_active}
+                    {
+                        "service_name": s.service_name,
+                        "is_active": s.is_active,
+                        "care_type": s.care_type or facility.category,
+                    }
                     for s in facility.services
                 ),
                 key=lambda s: s["service_name"],
@@ -155,9 +175,18 @@ def ambulance_detail(
     return data
 
 
-def page(items: list, total: int, page_no: int, page_size: int) -> dict:
+def page(
+    items: list,
+    total: int,
+    page_no: int,
+    page_size: int,
+    matched_place: str | None = None,
+    place_total: int | None = None,
+) -> dict:
     pages = (total + page_size - 1) // page_size if page_size else 0
     return {
+        "matched_place": matched_place,
+        "place_total": place_total,
         "items": items,
         "total": total,
         "page": page_no,

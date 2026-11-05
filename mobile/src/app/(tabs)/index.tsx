@@ -16,6 +16,7 @@ const CATEGORIES: Option[] = [
   { value: '', label: 'All care' },
   { value: 'hospital', label: 'Hospitals' },
   { value: 'clinic', label: 'Clinics' },
+  { value: 'laboratory', label: 'Labs' },
   { value: 'pharmacy', label: 'Pharmacies' },
   { value: 'hearse', label: 'Hearse' },
   { value: 'caregiver', label: 'Caregivers' },

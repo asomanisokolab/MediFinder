@@ -66,6 +66,7 @@ _ADDED_COLUMNS = [
     ("facilities", "source", "VARCHAR(20) NOT NULL DEFAULT ''"),
     ("facilities", "source_ref", "VARCHAR(120) NOT NULL DEFAULT ''"),
     ("facilities", "website", "VARCHAR(200) NOT NULL DEFAULT ''"),
+    ("services", "care_type", "VARCHAR(30) NOT NULL DEFAULT ''"),
 ]
 
 # Tables no longer in the models. Only dropped by the destructive seed
@@ -84,6 +85,29 @@ def ensure_schema() -> None:
             existing = {c["name"] for c in inspector.get_columns(table)}
             if column not in existing:
                 conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}"))
+        # create_all() only indexes tables it creates.
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_services_care_type ON services (care_type)"))
+        _fill_care_types(conn)
+
+
+def _fill_care_types(conn) -> None:
+    """Services saved before care types existed: a catalogue service that is
+    its own kind of care (Laboratory, Pharmacy...) gets that, the rest fall
+    under the facility's category. Matches reference.default_care_type."""
+    from .reference import OWN_CARE_TYPES
+
+    for name, care_type in OWN_CARE_TYPES.items():
+        conn.execute(
+            text(
+                "UPDATE services SET care_type = :c "
+                "WHERE care_type = '' AND lower(service_name) = :n"
+            ),
+            {"c": care_type, "n": name},
+        )
+    conn.execute(text(
+        "UPDATE services SET care_type = (SELECT category FROM facilities "
+        "WHERE facilities.id = services.facility_id) WHERE care_type = ''"
+    ))
 
 
 def drop_legacy_tables() -> None:

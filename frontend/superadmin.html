@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Superadmin — FindCare Ghana</title>
 <meta name="robots" content="noindex, nofollow">
 <meta name="theme-color" content="#0b3b36">
@@ -10,22 +10,23 @@
 <link rel="apple-touch-icon" href="/images/findcareghana-icon-180.png">
 <link rel="stylesheet" href="/css/styles.css">
 </head>
-<body class="wide">
+<body class="wide superadmin">
 <a class="skip" href="#main">Skip to content</a>
 
 <header class="site">
   <div class="wrap">
     <a class="brand" href="/"><img class="brand-logo" src="/images/findcareghana-logo.svg" alt="FindCare Ghana"><span class="brand-context">System management</span></a>
-    <nav aria-label="Main"><a href="/">Public directory</a></nav>
+    <nav aria-label="Main"><a href="/" target="_blank" rel="noopener">Open public site</a></nav>
   </div>
 </header>
 
 <main id="main" class="wrap">
-  <section id="login-view">
+  <section id="login-view" class="sa-login">
+    <p class="eyebrow">System management</p>
     <h1>Superadmin sign in</h1>
-    <p class="lede">Manage access requests, organization accounts, directory records, and admin updates.</p>
+    <p class="lede">Review contact requests, manage the directory and organization logins, and see what organizations change.</p>
     <div id="login-message" aria-live="polite"></div>
-    <form id="login-form" class="card" style="max-width:420px">
+    <form id="login-form" class="card">
       <div class="field">
         <label for="email">Email</label>
         <input type="email" id="email" autocomplete="username" required>
@@ -36,12 +37,13 @@
       </div>
       <button type="submit" id="login-btn">Sign in</button>
     </form>
+    <p class="notice">Superadmin accounts are created by an authorized operator on the server.</p>
   </section>
-  <section id="dashboard-view" hidden aria-live="polite"></section>
-  <footer class="site"><p>Superadmin accounts are provisioned by an authorized operator.</p></footer>
+  <section id="dashboard-view" hidden></section>
 </main>
 
 <script src="/js/api.js"></script>
+<script src="/js/ui.js"></script>
 <script src="/js/superadmin.js"></script>
 </body>
 </html>

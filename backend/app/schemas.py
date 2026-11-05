@@ -11,12 +11,19 @@ InsuranceName = Annotated[str, Field(min_length=1, max_length=80)]
 Email = Annotated[
     str, Field(min_length=3, max_length=160, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 ]
-FacilityCategory = Literal["hospital", "clinic", "pharmacy", "hearse", "caregiver"]
+FacilityCategory = Literal["hospital", "clinic", "laboratory", "pharmacy", "hearse", "caregiver"]
+# Keys of reference.CARE_TYPES.
+CareType = Literal[
+    "hospital", "clinic", "laboratory", "pharmacy", "imaging", "dental", "eye", "maternity",
+    "hearse", "caregiver",
+]
+BusyLevel = Literal["not_busy", "less_busy", "busy"]
 # Keys of reference.ORGANIZATION_TYPES.
 OrganizationType = Literal[
     "hospital_government",
     "hospital_private",
     "clinic",
+    "laboratory",
     "pharmacy",
     "ambulance",
     "hearse",
@@ -38,12 +45,30 @@ class Page(BaseModel, Generic[T]):
     data_verified: bool = Field(
         description="False while the dataset is unverified seed data (PRD 7.1)."
     )
+    # Set when the search text is the name of a place ("Koforidua"): the
+    # results are the facilities in that place.
+    matched_place: str | None = None
+    # How many of the results are in that place; the rest are named after it.
+    place_total: int | None = None
 
 
 class ServiceOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     service_name: str
     is_active: bool
+    care_type: str = ""
+
+
+class BusyOut(BaseModel):
+    """Red / yellow / green status. See busyness.py."""
+
+    level: Literal["not_busy", "less_busy", "busy", "unknown"]
+    label: str
+    # "facility" | "visitors" | "predicted" | "hours"
+    source: str
+    detail: str
+    updated_at: datetime | None = None
+    reports: int = 0
 
 
 class BedsOut(BaseModel):
@@ -91,7 +116,39 @@ class FacilitySummary(BaseModel):
     last_verified: datetime | None = None
     distance_km: float | None = None
     services: list[str] = []
+    # The facility's category first, then any other kinds of care it offers.
+    care_types: list[str] = []
     beds: BedsOut | None = None
+    busy: BusyOut | None = None
+
+
+class PlaceSuggestion(BaseModel):
+    name: str
+    region: str
+    count: int
+
+
+class FacilitySuggestion(BaseModel):
+    id: int
+    name: str
+    category: str
+    city: str
+    region: str
+
+
+class SuggestOut(BaseModel):
+    places: list[PlaceSuggestion]
+    facilities: list[FacilitySuggestion]
+
+
+class CareTypeOut(BaseModel):
+    value: str
+    label: str
+    services: list[str]
+
+
+class BusyReportIn(BaseModel):
+    level: BusyLevel
 
 
 class FacilityDetail(FacilitySummary):
@@ -217,10 +274,25 @@ class BedUpdateIn(BaseModel):
 class ServiceStatusIn(BaseModel):
     service_name: str = Field(min_length=1, max_length=80)
     is_active: bool
+    # Blank keeps the service's current care type (or picks the default).
+    care_type: CareType | Literal[""] = ""
 
 
 class ServicesUpdateIn(BaseModel):
     services: list[ServiceStatusIn]
+
+
+class OfferedServiceIn(BaseModel):
+    service_name: str = Field(min_length=1, max_length=80)
+    care_type: CareType
+    is_active: bool = True
+
+
+class OfferingsUpdateIn(BaseModel):
+    """The full list of what a facility offers, grouped by kind of care.
+    Replaces the previous list."""
+
+    services: list[OfferedServiceIn] = Field(max_length=300)
 
 
 class FleetUpdateIn(BaseModel):
@@ -262,6 +334,8 @@ class SuperadminFacilityUpdateIn(BaseModel):
     classification: str = Field(min_length=1, max_length=40)
     address: str = Field(default="", max_length=300)
     region: str = Field(min_length=1, max_length=60)
+    # None leaves the district as it is.
+    district: str | None = Field(default=None, max_length=80)
     city: str = Field(default="", max_length=80)
     town: str = Field(default="", max_length=80)
     lat: float = Field(ge=-90, le=90)

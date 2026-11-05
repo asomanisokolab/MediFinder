@@ -44,6 +44,8 @@ function render(facility) {
     ])
   );
 
+  if (facility.busy) mount.appendChild(busyCard(facility));
+
   /* beds -- PRD 5.1.3 and 7.3 */
   const beds = facility.beds || { display: 'Not updated', is_stale: true };
   if (isHealthFacility(facility)) mount.appendChild(
@@ -100,14 +102,28 @@ function render(facility) {
   }
   mount.appendChild(el('section', { class: 'card' }, ambulanceBody));
 
-  /* services */
-  const active = facility.service_detail.filter((s) => s.is_active).map((s) => s.service_name);
+  /* services, grouped by the part of the facility that offers them */
+  const active = facility.service_detail.filter((s) => s.is_active);
   const inactive = facility.service_detail.filter((s) => !s.is_active).map((s) => s.service_name);
   const servicesBody = [el('h2', { style: 'margin-top:0', text: 'Services' })];
-  if (active.length) {
-    servicesBody.push(chipList(active));
-  } else {
+  const groups = new Map(facility.care_types.map((t) => [t, []]));
+  active.forEach((s) => {
+    const type = s.care_type || facility.category;
+    if (!groups.has(type)) groups.set(type, []);
+    groups.get(type).push(s.service_name);
+  });
+  const filled = Array.from(groups).filter(([, names]) => names.length);
+  if (!filled.length) {
     servicesBody.push(el('p', { class: 'notice', text: 'No services listed.' }));
+  } else if (filled.length === 1) {
+    servicesBody.push(chipList(filled[0][1]));
+  } else {
+    filled.forEach(([type, names]) => {
+      servicesBody.push(
+        el('h3', { class: 'service-group', text: CARE_TYPE_LABEL[type] || type }),
+        chipList(names)
+      );
+    });
   }
   if (inactive.length) {
     servicesBody.push(
@@ -166,6 +182,72 @@ function render(facility) {
         : null,
     ])
   );
+}
+
+/* ---------- how busy is it? -------------------------------------------
+   The current status, and three buttons for someone there to say how busy
+   it is. Reports from visitors last 90 minutes and are averaged. */
+const BUSY_CHOICES = [
+  { level: 'busy', label: 'Busy', hint: 'Long queue' },
+  { level: 'less_busy', label: 'Less busy', hint: 'Some wait' },
+  { level: 'not_busy', label: 'Not busy', hint: 'Little or no wait' },
+];
+
+function busyStatusBlock(busy) {
+  return el('div', { class: `busy-now busy-${busy.level}` }, [
+    el('span', { class: 'busy-dot', 'aria-hidden': 'true' }),
+    el('div', {}, [
+      el('strong', { text: busy.label }),
+      el('p', {
+        text: busy.detail + (busy.updated_at ? ` · ${fmtWhen(busy.updated_at)}` : '') + '.',
+      }),
+    ]),
+  ]);
+}
+
+function busyCard(facility) {
+  const status = el('div', {}, [busyStatusBlock(facility.busy)]);
+  const message = el('div', { class: 'feedback', role: 'status', 'aria-live': 'polite', hidden: true });
+
+  const buttons = BUSY_CHOICES.map((choice) => {
+    const button = el('button', { type: 'button', class: `busy-choice busy-${choice.level}` }, [
+      el('span', { class: 'busy-dot', 'aria-hidden': 'true' }),
+      el('span', {}, [el('strong', { text: choice.label }), el('small', { text: choice.hint })]),
+    ]);
+    button.addEventListener('click', async () => {
+      buttons.forEach((b) => { b.disabled = true; });
+      setLoading(button, true, 'Sending…');
+      try {
+        const busy = await api(`/facilities/${facility.id}/busy-reports`, {}, {
+          method: 'POST',
+          body: { level: choice.level },
+          auth: false,
+        });
+        clear(status).appendChild(busyStatusBlock(busy));
+        feedback(message, 'ok', `Thank you. You reported "${choice.label}". It helps the next person decide where to go.`);
+        toast('Thanks for your report');
+      } catch (err) {
+        feedback(message, 'error', err.message);
+      } finally {
+        setLoading(button, false);
+        buttons.forEach((b) => { b.disabled = false; });
+      }
+    });
+    return button;
+  });
+
+  return el('section', { class: 'card busy-card', 'aria-labelledby': 'busy-title' }, [
+    el('h2', { id: 'busy-title', style: 'margin-top:0', text: 'How busy is it now?' }),
+    status,
+    busyLegend(),
+    el('p', {
+      class: 'notice',
+      text: 'Predictions come from the usual pattern for this kind of place and past reports. Call before travelling if it matters.',
+    }),
+    el('h3', { class: 'busy-ask', text: 'Are you there now? Tell others how busy it is' }),
+    el('div', { class: 'busy-choices' }, buttons),
+    message,
+  ]);
 }
 
 /* Attribution required by the open-data licences of imported records. */

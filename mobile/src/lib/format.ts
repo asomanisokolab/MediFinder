@@ -5,6 +5,7 @@ import type { Category, FacilitySummary, ProviderSummary } from './api';
 export const CATEGORY_LABEL: Record<Category, string> = {
   hospital: 'Hospital',
   clinic: 'Clinic',
+  laboratory: 'Laboratory',
   pharmacy: 'Pharmacy / medical store',
   hearse: 'Hearse service',
   caregiver: 'Caregiver',

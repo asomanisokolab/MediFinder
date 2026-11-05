@@ -10,7 +10,7 @@ export const API_ORIGIN: string =
 
 const API = `${API_ORIGIN}/api/v1`;
 
-export type Category = 'hospital' | 'clinic' | 'pharmacy' | 'hearse' | 'caregiver';
+export type Category = 'hospital' | 'clinic' | 'laboratory' | 'pharmacy' | 'hearse' | 'caregiver';
 
 export interface Beds {
   total_beds: number | null;

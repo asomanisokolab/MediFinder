@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from .. import busyness
 from ..config import settings
 from ..database import get_db
 from ..models import (
@@ -16,6 +17,7 @@ from ..models import (
     AmbulanceStatus,
     AdminChangeLog,
     BedAvailability,
+    BusyReport,
     Facility,
     Service,
     utcnow,
@@ -25,6 +27,9 @@ from ..reference import in_ghana
 from ..schemas import (
     AdminMeOut,
     BedUpdateIn,
+    BusyOut,
+    BusyReportIn,
+    OfferingsUpdateIn,
     FleetUpdateIn,
     LocationIn,
     LoginIn,
@@ -283,6 +288,107 @@ def update_services(
     }
 
 
+@router.put("/facilities/{facility_id}/offerings")
+def update_offerings(
+    facility_id: int,
+    payload: OfferingsUpdateIn,
+    admin=Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Replace the facility's full list of services, each under the kind of
+    care that offers it (its hospital, its laboratory, its pharmacy...).
+    Services left out are removed; is_active false keeps one listed as
+    temporarily unavailable."""
+    require_facility(admin, facility_id)
+    facility = db.get(Facility, facility_id)
+    if facility is None:
+        raise HTTPException(status_code=404, detail="Facility not found")
+
+    wanted: dict[str, tuple[str, str, bool]] = {}
+    for item in payload.services:
+        name = " ".join(item.service_name.split())
+        if not name:
+            continue
+        if name.casefold() in wanted:
+            raise HTTPException(
+                status_code=422,
+                detail=f'"{name}" is listed twice. Keep it under one kind of care.',
+            )
+        wanted[name.casefold()] = (name, item.care_type, item.is_active)
+
+    before = {
+        s.service_name: {"care_type": s.care_type, "is_active": s.is_active}
+        for s in facility.services
+    }
+    # Edit in place: the (facility, service) unique key would trip if new
+    # rows were inserted before the old ones were deleted.
+    for service in list(facility.services):
+        if service.service_name.casefold() not in wanted:
+            facility.services.remove(service)
+    have = {s.service_name.casefold(): s for s in facility.services}
+    for key, (name, care_type, active) in wanted.items():
+        row = have.get(key)
+        if row is None:
+            row = Service(service_name=name)
+            facility.services.append(row)
+        row.service_name = name
+        row.care_type = care_type
+        row.is_active = active
+
+    facility.last_updated = utcnow()
+    after = {
+        name: {"care_type": care_type, "is_active": active}
+        for name, care_type, active in wanted.values()
+    }
+    _record_change(
+        db, admin, "facility", facility.id, facility.name, "offerings.updated",
+        {
+            name: {"before": before.get(name), "after": after.get(name)}
+            for name in sorted(set(before) | set(after))
+            if before.get(name) != after.get(name)
+        },
+    )
+    db.commit()
+    db.refresh(facility)
+    from ..presenters import facility_detail
+
+    detail = facility_detail(facility)
+    return {
+        "facility_id": facility_id,
+        "care_types": detail["care_types"],
+        "services": detail["service_detail"],
+    }
+
+
+@router.put("/facilities/{facility_id}/busy", response_model=BusyOut)
+def update_busy(
+    facility_id: int,
+    payload: BusyReportIn,
+    admin=Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Staff say how busy the facility is right now. Shown to the public
+    for the next 3 hours, ahead of visitor reports and the prediction."""
+    require_facility(admin, facility_id)
+    facility = db.get(Facility, facility_id)
+    if facility is None:
+        raise HTTPException(status_code=404, detail="Facility not found")
+    if facility.category not in busyness.TRACKED_CATEGORIES:
+        raise HTTPException(status_code=422, detail="This listing does not take busy reports.")
+
+    previous = busyness.status(db, facility)
+    db.add(BusyReport(
+        facility_id=facility_id, level=busyness.LEVELS.index(payload.level), source="facility",
+    ))
+    facility.last_updated = utcnow()
+    _record_change(
+        db, admin, "facility", facility.id, facility.name, "busy.updated",
+        {"level": {"before": previous["level"] if previous else None, "after": payload.level}},
+    )
+    db.commit()
+    return busyness.status(db, facility)
+
+
 @router.put("/ambulance/providers/{provider_id}/status")
 def update_fleet(
     provider_id: int,
@@ -354,7 +460,7 @@ def dashboard(admin=Depends(get_current_admin), db: Session = Depends(get_db)):
             "scope": "facility",
             "stale_after_hours": settings.STALE_AFTER_HOURS,
             "location_confirmed": facility.location_confirmed,
-            "facility": facility_detail(facility),
+            "facility": facility_detail(facility, None, busyness.status(db, facility)),
         }
 
     provider = db.get(AmbulanceProvider, admin.provider_id)

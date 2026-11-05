@@ -116,12 +116,102 @@ def in_ghana(lat: float, lng: float) -> bool:
 
 
 # What kind of place a Facility row is. Ambulance services are not here:
-# they are AmbulanceProvider rows (PRD v1.1 5.1.6).
-FACILITY_CATEGORIES = ["hospital", "clinic", "pharmacy", "hearse", "caregiver"]
+# they are AmbulanceProvider rows (PRD v1.1 5.1.6). A "laboratory" does lab
+# work only; a hospital with a lab is a hospital that also offers the
+# laboratory care type below.
+FACILITY_CATEGORIES = ["hospital", "clinic", "laboratory", "pharmacy", "hearse", "caregiver"]
 # Only these take a GHS classification and appear in emergency mode -- a
 # hearse or a pharmacy is not where to send someone in trouble.
 HEALTH_FACILITY_CATEGORIES = ("hospital", "clinic")
 UNCLASSIFIED = "Not classified"
+
+# The kinds of care one facility can offer under one roof: a hospital can
+# also run a laboratory, a pharmacy and a scan unit. Each service belongs to
+# one of these (Service.care_type). The facility's own category is always
+# one of its care types. "services" are the suggestions offered to the
+# facility admin; they can add any other service by name.
+CARE_TYPES = {
+    "hospital": {
+        "label": "Hospital",
+        "services": [
+            "Accident and Emergency", "Outpatient", "Inpatient admission", "Surgery",
+            "Maternity", "ICU", "Paediatrics", "Antenatal Care", "Orthopaedics", "ENT",
+            "Dermatology", "Mental Health", "Dialysis", "Physiotherapy", "Immunisation",
+        ],
+    },
+    "clinic": {
+        "label": "Clinic",
+        "services": [
+            "Outpatient", "Antenatal Care", "Immunisation", "Family planning", "Paediatrics",
+            "Minor procedures", "Wound dressing", "Health screening", "Physiotherapy",
+        ],
+    },
+    "laboratory": {
+        "label": "Laboratory",
+        "services": [
+            "Laboratory", "Malaria test", "Full blood count", "Blood sugar test",
+            "Urine test", "Stool test", "Typhoid test", "HIV test", "Hepatitis B test",
+            "Pregnancy test", "Blood group and crossmatch", "Lipid profile",
+            "Liver function test", "Kidney function test", "Thyroid function test",
+            "Sickle cell test", "TB (sputum) test", "Prostate (PSA) test", "Semen analysis",
+            "COVID-19 test", "Home sample collection",
+        ],
+    },
+    "pharmacy": {
+        "label": "Pharmacy",
+        "services": [
+            "Pharmacy", "Prescription medicines", "Over-the-counter medicines",
+            "NHIS medicines", "Blood pressure check", "Blood sugar check",
+            "Family planning products", "Medical supplies",
+        ],
+    },
+    "imaging": {
+        "label": "Scan and X-ray",
+        "services": [
+            "Radiology / X-Ray", "Ultrasound", "CT scan", "MRI", "Mammogram", "ECG",
+            "Echocardiogram",
+        ],
+    },
+    "dental": {
+        "label": "Dental clinic",
+        "services": [
+            "Dental", "Check-up and cleaning", "Tooth extraction", "Fillings",
+            "Root canal treatment", "Braces", "Dentures",
+        ],
+    },
+    "eye": {
+        "label": "Eye clinic",
+        "services": ["Eye Care", "Eye test", "Glasses and lenses", "Cataract surgery", "Glaucoma care"],
+    },
+    "maternity": {
+        "label": "Maternity home",
+        "services": ["Maternity", "Antenatal Care", "Delivery", "Postnatal care", "Family planning"],
+    },
+    "hearse": {
+        "label": "Hearse service",
+        "services": ["Hearse hire", "Body transport", "Funeral services"],
+    },
+    "caregiver": {
+        "label": "Caregiving",
+        "services": ["Home nursing", "Elderly care", "Post-surgery care", "Disability care"],
+    },
+}
+
+# Catalogue services that belong to their own care type wherever they are
+# offered: a hospital's "Laboratory" is its laboratory. Anything else falls
+# under the facility's category.
+OWN_CARE_TYPES = {
+    "laboratory": "laboratory",
+    "pharmacy": "pharmacy",
+    "radiology / x-ray": "imaging",
+    "ultrasound": "imaging",
+    "dental": "dental",
+    "eye care": "eye",
+}
+
+
+def default_care_type(service_name: str, category: str) -> str:
+    return OWN_CARE_TYPES.get(service_name.strip().lower(), category)
 
 # Choices on the public contact form. Each maps to a Facility category and
 # default ownership, or to an AmbulanceProvider when category is None.
@@ -133,6 +223,9 @@ ORGANIZATION_TYPES = {
         "label": "Hospital (private)", "category": "hospital", "ownership": "private",
     },
     "clinic": {"label": "Clinic", "category": "clinic", "ownership": "private"},
+    "laboratory": {
+        "label": "Laboratory / diagnostic centre", "category": "laboratory", "ownership": "private",
+    },
     "pharmacy": {
         "label": "Pharmacy / medical store", "category": "pharmacy", "ownership": "private",
     },

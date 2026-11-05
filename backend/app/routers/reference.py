@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models import Facility, Insurance, Service
 from ..reference import (
+    CARE_TYPES,
     CLASSIFICATIONS,
     COST_BANDS,
     FACILITY_CATEGORIES,
@@ -17,7 +18,7 @@ from ..reference import (
     SERVICE_CATALOG,
     SERVICE_LEVELS,
 )
-from ..schemas import ClassificationOut
+from ..schemas import CareTypeOut, ClassificationOut
 
 router = APIRouter(tags=["reference"])
 
@@ -63,6 +64,16 @@ def list_services(db: Session = Depends(get_db)):
     """Service catalogue, union of the standard list and what is in the data."""
     in_use = set(db.scalars(select(distinct(Service.service_name))).all())
     return sorted(set(SERVICE_CATALOG) | {s for s in in_use if s})
+
+
+@router.get("/care-types", response_model=list[CareTypeOut])
+def list_care_types():
+    """Kinds of care one facility can offer (hospital, laboratory, pharmacy...),
+    each with the services usually found there."""
+    return [
+        {"value": key, "label": item["label"], "services": item["services"]}
+        for key, item in CARE_TYPES.items()
+    ]
 
 
 @router.get("/insurance", response_model=list[str])

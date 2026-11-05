@@ -23,6 +23,7 @@ from sqlalchemy import select
 from .config import DATA_DIR
 from .database import SessionLocal, ensure_schema
 from .models import Admin, Facility, Service, utcnow
+from .reference import default_care_type
 
 DEFAULT_CSV = DATA_DIR / "ghana_facilities.csv"
 
@@ -100,6 +101,10 @@ def _sync_services(facility: Facility, names: list[str]) -> None:
     for name in names:
         if name not in have:
             facility.services.append(Service(service_name=name, is_active=True))
+    # Only unmanaged records get here, so nothing an organization chose is lost
+    # when a re-import moves a record to another category (clinic -> laboratory).
+    for service in facility.services:
+        service.care_type = default_care_type(service.service_name, facility.category)
 
 
 def import_directory(path: Path = DEFAULT_CSV, *, quiet: bool = False) -> dict:

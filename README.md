@@ -1,9 +1,10 @@
 # FindCare Ghana
 
 Phase 1 (MVP) implementation of the FindCare Ghana directory (built to the
-MediFinder Ghana PRD v1.1). It lists hospitals, clinics, pharmacies and medical
-stores, ambulance services, hearse services and caregivers across all 16
-regions of Ghana. It is served at <https://findcareghana.com>.
+MediFinder Ghana PRD v1.1). It lists hospitals, clinics, laboratories,
+pharmacies and medical stores, ambulance services, hearse services and
+caregivers across all 16 regions of Ghana. It is served at
+<https://findcareghana.com>.
 
 - Email: <info@findcareghana.com>
 - Instagram, X and Facebook: **@findcareGh**
@@ -24,14 +25,18 @@ The shipped dataset is **seed data, not a verified directory**. It has two parts
    Names, regions and approximate coordinates are real public reference
    points. **Every phone number is a placeholder** (`+233 30 000 XXXX`). None
    has been dialled, and none will connect.
-2. **About 2,400 hospitals, clinics, CHPS compounds, pharmacies, chemical
-   sellers, funeral homes and care homes from OpenStreetMap**, in
+2. **About 2,400 hospitals, clinics, CHPS compounds, laboratories,
+   pharmacies, chemical sellers, funeral homes and care homes from
+   OpenStreetMap**, in
    `data/ghana_facilities.csv` (see [data/SOURCES.md](data/SOURCES.md)). They
    have real coordinates, and each has a region, district (MMDA), city or
    town, and community. Phone numbers and opening hours appear only where
    OpenStreetMap mappers recorded them, about 1 in 8 records. None has been
    called. Services list only what the source says the place is, such as a
-   pharmacy, dentist or CHPS compound. Nothing is guessed. Each profile
+   pharmacy, dentist or CHPS compound. Nothing is guessed. A place that only
+   does lab work (32 of them) is a **laboratory**; a clinic, hospital or
+   pharmacy whose name says it has a lab (18) keeps its category and lists a
+   Laboratory service. Each profile
    credits OpenStreetMap, as the ODbL licence requires. When an
    OpenStreetMap place is the same as a hand-picked one (same name, within
    1 km), the two become one record. It takes the open-data location,
@@ -47,6 +52,57 @@ PRD §7.3 requires every ambulance dispatch number to be call-verified before
 publication, and §8 requires re-verification every 90 days. Do that before
 setting `MEDIFINDER_DATA_VERIFIED=true`. Until then this is a working system
 with placeholder contents, not something anyone should rely on in an emergency.
+
+---
+
+## Search, busy status and what facilities offer
+
+**Search box.** Typing a town, community or district ("Koforidua") lists every
+facility there, followed by any named after it elsewhere. Typing a name
+("Atibie Government Hospital") puts that facility first. Every word is
+matched on its own, in the name, the place, the address or a service ("malaria
+test"), so "clinics in Ho" works. While typing, suggestions show places
+(choosing one lists everything there) and facilities (choosing one opens its
+profile). The Search button turns grey with a spinner while a search runs,
+and a message above the results says what was found ("Found 32 facilities in
+Koforidua"), that nothing was found, or that the search failed, with a Try
+again button. Dropdowns apply as soon as they change.
+
+**Busy status: red busy, yellow less busy, green not busy.** Every hospital,
+clinic, laboratory and pharmacy shows one, on the result card and the
+profile. It comes from the first of these that applies (see
+`backend/app/busyness.py`):
+
+1. **The facility's staff.** The admin dashboard has three buttons. Their
+   answer is shown for 3 hours.
+2. **People there.** The profile asks "Are you there now?". Reports from the
+   last 90 minutes are averaged, the newest counting most. One person can
+   report once every 20 minutes per facility. Only a hash of their address is
+   kept, never the address.
+3. **A prediction.** It starts from the usual pattern for that kind of place:
+   outpatient queues peak on weekday mornings, labs before noon, pharmacies
+   after work, Mondays are busiest, and private facilities see fewer people
+   than government ones. It then learns from the reports this facility has
+   had at the same hour on the same kind of day over the last eight weeks.
+   The more reports a facility gets, the more its prediction follows its own
+   pattern. Fresh bed counts also move it.
+
+Outside usual opening hours, a facility that isn't open 24 hours shows grey
+"May be closed". Each status says where it came from ("Predicted", "Visitor
+reports", "Facility update"), so a guess is never shown as a check. The
+prediction runs on the server and needs no outside AI service, API key or
+running cost.
+
+**What a facility offers.** A facility can offer several kinds of care: a
+hospital can also run a laboratory, a pharmacy and a scan unit. On the admin
+dashboard, **What you offer** has a **Kinds of care** dropdown (Hospital,
+Clinic, Laboratory, Pharmacy, Scan and X-ray, Dental clinic, Eye clinic,
+Maternity home and more; several can be ticked). Under each kind the admin
+lists its services, either tapping suggestions (Malaria test, Full blood
+count…) or typing their own. Any service can be marked as not available now
+or removed. The profile shows services grouped by kind, and the **Looking
+for** filter matches the kind as well as the category: "Laboratories" finds
+standalone labs and every hospital or clinic that runs one.
 
 ---
 
@@ -533,13 +589,16 @@ All endpoints under `/api/v1`, JSON only, paginated, rate limited.
 | --- | --- | --- |
 | GET | `/facilities` | Filters: region, district, city, town, type, category, classification, service (repeatable), insurance, is_24_hour, has_ambulance, q. Listings without a confirmed location are omitted |
 | GET | `/facilities/nearby` | `lat`, `lng`, `radius_km`; sorted by distance |
-| GET | `/facilities/search` | Free text; accepts optional `lat`/`lng` to sort by distance |
-| GET | `/facilities/{id}` | Full profile |
+| GET | `/facilities/search` | `q` is a place name (returns `matched_place` and `place_total`) or words from a name, place or service; accepts optional `lat`/`lng` to sort by distance. Every result carries `busy` and `care_types` |
+| GET | `/facilities/suggest` | `q` (2+ letters): matching places and facilities for the search box |
+| GET | `/facilities/{id}` | Full profile, with `busy`, `care_types` and each service's `care_type` |
+| POST | `/facilities/{id}/busy-reports` | Public: `{"level": "busy" \| "less_busy" \| "not_busy"}`; once per person per facility every 20 minutes |
 | GET | `/ambulance/providers` | Filters: region, district, operator_type, service_level, q |
 | GET | `/ambulance/providers/{id}` | Full provider profile |
 | GET | `/ambulance/covering` | Providers whose **coverage** includes a coordinate |
 | GET | `/emergency` | Facilities + ambulances + 112 in one call; never rate limited |
 | GET | `/regions`, `/services`, `/insurance`, `/classifications`, `/enums` | Reference data |
+| GET | `/care-types` | Kinds of care a facility can offer, each with suggested services |
 | GET | `/regions/{region}/districts` | Districts (MMDAs) with listed facilities |
 | GET | `/regions/{region}/localities` | Cities and towns; optional `district` narrows the list |
 | POST | `/contact` | Public contact form; creates a pending request, grants nothing |
@@ -547,7 +606,9 @@ All endpoints under `/api/v1`, JSON only, paginated, rate limited.
 | POST | `/admin/password` | Admin changes their own password (current + new); the only write allowed before the default password is replaced |
 | PUT | `/admin/location` | Set the organization's own lat/lng (must be in Ghana); makes it publicly listed |
 | POST | `/superadmin/login` | Returns a superadmin-only 8-hour JWT |
-| GET | `/superadmin/overview` | Superadmin-only directory, contact requests, admins, and audit history |
+| GET | `/superadmin/overview` | Superadmin-only counts, contact requests, admins, and audit history |
+| GET | `/superadmin/facilities` | Superadmin-only paged search of every facility, hidden ones included: `q` (name, ID, community, town, district, region, phone), `region`, `district`, `city`, `category`, `type`, `verified`, `location` (set/missing), `managed` (has a login) |
+| GET | `/superadmin/providers` | Superadmin-only paged search of ambulance providers: `q`, `region`, `district`, `operator_type`, `service_level`, `verified`, `location` |
 | POST | `/superadmin/organizations` | Create a listing + admin login (optionally approving a contact request); returns the default password (`temporary_password`) and a ready-to-send `message` for the superadmin to email |
 | POST | `/superadmin/admins/{id}/reset-password` | Lost password: replaces it with a new default password (old one stops working) and returns the message the same way |
 | POST | `/superadmin/contact-requests/{id}/reject` | Reject a contact request |
@@ -558,7 +619,9 @@ All endpoints under `/api/v1`, JSON only, paginated, rate limited.
 | DELETE | `/superadmin/providers/{id}` | Permanently deletes a provider, its related records, and facility links |
 | GET | `/admin/me`, `/admin/dashboard` | Authenticated |
 | PUT | `/facilities/{id}/beds` | Facility admin only |
-| PUT | `/facilities/{id}/services` | Facility admin only |
+| PUT | `/facilities/{id}/services` | Facility admin only: turn listed services on or off |
+| PUT | `/facilities/{id}/offerings` | Facility admin only: the full list of services, each with its `care_type`; replaces the old list |
+| PUT | `/facilities/{id}/busy` | Facility admin only: how busy it is now, shown for 3 hours |
 | PUT | `/ambulance/providers/{id}/status` | Provider admin only |
 
 Every organization-admin endpoint except `/admin/me` and `/admin/password`
@@ -581,6 +644,12 @@ always serve the caller's district, so `/ambulance/covering` matches coverage
 first and orders by distance within that set. Providers that do not cover the
 caller are still returned as a backstop, explicitly flagged
 `covers_user_area: false`, rather than returning nothing.
+
+**One facility, several kinds of care.** `services.care_type` says which
+part of a facility offers a service (a hospital's laboratory, its pharmacy).
+Older rows are filled in on startup: Laboratory, Pharmacy, Dental, Eye Care,
+X-ray and Ultrasound get their own kind, and everything else falls under the
+facility's category.
 
 **Dental needed no schema change.** It is a value in `services.service_name`.
 Standalone private dental clinics take the existing `Private` classification;
