@@ -1,13 +1,14 @@
 /* Find care: emergency entry point, search and filters, results. */
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { FacilityCard } from '@/components/Cards';
+import { BusyLegend, FacilityCard } from '@/components/Cards';
 import { Picker, type Option } from '@/components/Picker';
-import { Button, DataBanner, Empty, ErrorBox, Loading, Notice, Toggle } from '@/components/ui';
-import { api, type FacilityFilters, type FacilitySummary } from '@/lib/api';
+import { Button, DataBanner, Feedback, Loading, Notice, Toggle } from '@/components/ui';
+import { api, type FacilityFilters, type FacilitySummary, type Page } from '@/lib/api';
+import { CATEGORY_LABEL } from '@/lib/format';
 import { useLocation } from '@/lib/location';
 import { colors, radius, shadow } from '@/lib/theme';
 import { useQuery } from '@/lib/useQuery';
@@ -16,8 +17,12 @@ const CATEGORIES: Option[] = [
   { value: '', label: 'All care' },
   { value: 'hospital', label: 'Hospitals' },
   { value: 'clinic', label: 'Clinics' },
-  { value: 'laboratory', label: 'Labs' },
+  { value: 'laboratory', label: 'Laboratories' },
   { value: 'pharmacy', label: 'Pharmacies' },
+  { value: 'imaging', label: 'Scan and X-ray' },
+  { value: 'dental', label: 'Dental' },
+  { value: 'eye', label: 'Eye care' },
+  { value: 'maternity', label: 'Maternity' },
   { value: 'hearse', label: 'Hearse' },
   { value: 'caregiver', label: 'Caregivers' },
 ];
@@ -28,11 +33,50 @@ const OWNERSHIP: Option[] = [
 const toOptions = (values: string[] | undefined): Option[] =>
   (values ?? []).map((v) => ({ value: v, label: v }));
 
+/* What "Looking for" finds, in words: a laboratory search also finds
+   hospitals and clinics that run one. */
+const RESULT_NOUN: Record<string, [string, string]> = {
+  hospital: ['hospital', 'hospitals'],
+  clinic: ['clinic', 'clinics'],
+  laboratory: ['place with a laboratory', 'places with a laboratory'],
+  pharmacy: ['pharmacy', 'pharmacies'],
+  imaging: ['place for scans and X-rays', 'places for scans and X-rays'],
+  dental: ['place for dental care', 'places for dental care'],
+  eye: ['place for eye care', 'places for eye care'],
+  maternity: ['place for maternity care', 'places for maternity care'],
+  hearse: ['hearse service', 'hearse services'],
+  caregiver: ['caregiver', 'caregivers'],
+};
+
+function plural(count: number, one: string, many: string) {
+  return `${count.toLocaleString()} ${count === 1 ? one : many}`;
+}
+
+/* One sentence saying what was found, in the words the user searched with. */
+function describeResults(body: Page<FacilitySummary>, filters: FacilityFilters, nearest: boolean) {
+  const [one, many] = RESULT_NOUN[filters.category ?? ''] ?? ['facility', 'facilities'];
+  if (body.matched_place) {
+    const inPlace = body.place_total ?? body.total;
+    let text = `Found ${plural(inPlace, one, many)} in ${body.matched_place}`;
+    if (body.total > inPlace) text += `, and ${(body.total - inPlace).toLocaleString()} named after it elsewhere`;
+    return `${text}.`;
+  }
+  let text = `Found ${plural(body.total, one, many)}`;
+  if (filters.q) text += ` for “${filters.q}”`;
+  const where = [filters.city, filters.district, filters.region].find(Boolean);
+  if (where) text += ` in ${where}`;
+  if (nearest) text += ', nearest first';
+  return `${text}.`;
+}
+
 export default function FindCare() {
   const { coords, locating, locate, forget } = useLocation();
 
   const [q, setQ] = useState('');
   const [submittedQ, setSubmittedQ] = useState('');
+  // Suggestions follow the typed text after a short pause.
+  const [suggestText, setSuggestText] = useState('');
+  const suggestTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [category, setCategory] = useState('');
   const [region, setRegion] = useState('');
   const [district, setDistrict] = useState('');
@@ -44,6 +88,31 @@ export default function FindCare() {
   const [hasAmbulance, setHasAmbulance] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [locateMessage, setLocateMessage] = useState('');
+
+  function changeQ(text: string) {
+    setQ(text);
+    if (suggestTimer.current) clearTimeout(suggestTimer.current);
+    suggestTimer.current = setTimeout(() => setSuggestText(text.trim()), 250);
+  }
+  function submitSearch(text = q) {
+    if (suggestTimer.current) clearTimeout(suggestTimer.current);
+    setQ(text);
+    setSubmittedQ(text.trim());
+    setSuggestText(text.trim());
+  }
+  function clearSearch() {
+    submitSearch('');
+  }
+  const suggestions = useQuery(suggestText.length >= 2 ? `suggest:${suggestText}` : null, () =>
+    api.suggest(suggestText)
+  );
+  // Hidden once the text has been searched, or while it is still changing.
+  const showSuggestions =
+    suggestText.length >= 2 &&
+    suggestText !== submittedQ &&
+    q.trim() === suggestText &&
+    !!suggestions.data &&
+    suggestions.data.places.length + suggestions.data.facilities.length > 0;
 
   // Dropdown lists. Search still works if they fail to load.
   const reference = useQuery('reference', () =>
@@ -133,7 +202,7 @@ export default function FindCare() {
         <Text style={styles.eyebrow}>ALL 16 REGIONS OF GHANA</Text>
         <Text style={styles.heroTitle}>Find care near you</Text>
         <Text style={styles.heroText}>
-          Hospitals, clinics, pharmacies, ambulances, hearse services and caregivers.
+          Hospitals, clinics, laboratories, pharmacies, ambulances, hearse services and caregivers.
         </Text>
         <Pressable
           onPress={() => router.push('/emergency')}
@@ -149,30 +218,69 @@ export default function FindCare() {
       <DataBanner />
 
       <View style={styles.panel}>
-        <View style={styles.searchRow}>
-          <Ionicons name="search" size={20} color={colors.inkSoft} />
-          <TextInput
-            value={q}
-            onChangeText={setQ}
-            onSubmitEditing={() => setSubmittedQ(q.trim())}
-            placeholder="Facility, community, town or district"
-            placeholderTextColor={colors.muted}
-            returnKeyType="search"
-            style={styles.searchInput}
-            accessibilityLabel="Search by facility name, community, town or district"
-          />
-          {q ? (
-            <Pressable
-              onPress={() => {
-                setQ('');
-                setSubmittedQ('');
-              }}
-              hitSlop={10}
-              accessibilityLabel="Clear search">
-              <Ionicons name="close-circle" size={20} color={colors.muted} />
-            </Pressable>
-          ) : null}
+        <Text style={styles.label}>Facility name or place</Text>
+        <View style={styles.searchBar}>
+          <View style={styles.searchRow}>
+            <Ionicons name="search" size={20} color={colors.inkSoft} />
+            <TextInput
+              value={q}
+              onChangeText={changeQ}
+              onSubmitEditing={() => submitSearch()}
+              placeholder="e.g. Koforidua"
+              placeholderTextColor={colors.muted}
+              returnKeyType="search"
+              autoCorrect={false}
+              style={styles.searchInput}
+              accessibilityLabel="Search by facility name or place"
+            />
+            {q ? (
+              <Pressable onPress={clearSearch} hitSlop={10} accessibilityLabel="Clear search">
+                <Ionicons name="close-circle" size={20} color={colors.muted} />
+              </Pressable>
+            ) : null}
+          </View>
+          <Button label="Search" icon="search" loading={loading} loadingLabel="Searching…" onPress={() => submitSearch()} />
         </View>
+        {showSuggestions && suggestions.data ? (
+          <View style={styles.suggestions} accessibilityLabel="Suggestions">
+            {suggestions.data.places.map((p) => (
+              <Pressable
+                key={`place:${p.name}:${p.region}`}
+                onPress={() => submitSearch(p.name)}
+                style={({ pressed }) => [styles.suggestion, pressed && styles.suggestionPressed]}
+                accessibilityRole="button"
+                accessibilityHint="Lists every facility in this place">
+                <Text style={[styles.kind, styles.kindPlace]}>PLACE</Text>
+                <View style={styles.suggestionText}>
+                  <Text style={styles.suggestionTitle}>{p.name}</Text>
+                  <Text style={styles.suggestionDetail}>{`${p.region} · ${plural(p.count, 'listing', 'listings')}`}</Text>
+                </View>
+              </Pressable>
+            ))}
+            {suggestions.data.facilities.map((f) => (
+              <Pressable
+                key={`facility:${f.id}`}
+                onPress={() => {
+                  setSuggestText('');
+                  router.push({ pathname: '/facility/[id]', params: { id: String(f.id) } });
+                }}
+                style={({ pressed }) => [styles.suggestion, pressed && styles.suggestionPressed]}
+                accessibilityRole="link"
+                accessibilityHint="Opens this facility">
+                <Text style={styles.kind}>FACILITY</Text>
+                <View style={styles.suggestionText}>
+                  <Text style={styles.suggestionTitle}>{f.name}</Text>
+                  <Text style={styles.suggestionDetail}>
+                    {[CATEGORY_LABEL[f.category] ?? f.category, f.city || f.region].filter(Boolean).join(' · ')}
+                  </Text>
+                </View>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
+        <Text style={styles.hint}>
+          {'Type a town to see everything in it, or a facility name to find that facility.'}
+        </Text>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categories}>
           {CATEGORIES.map((c) => (
@@ -236,17 +344,22 @@ export default function FindCare() {
 
       <View style={styles.resultsHead}>
         <Text style={styles.resultsTitle}>{coords ? 'Nearest to you' : 'Facilities'}</Text>
-        {!loading && !error ? (
-          <Text style={styles.count}>
-            {total.toLocaleString()} {total === 1 ? 'place' : 'places'}
-          </Text>
-        ) : null}
+        {!loading && !error ? <Text style={styles.count}>{plural(total, 'facility', 'facilities')}</Text> : null}
       </View>
-      {loading ? <Loading message="Searching…" /> : null}
-      {error ? <ErrorBox message={error} onRetry={results.retry} /> : null}
-      {!loading && !error && items.length === 0 ? (
-        <Empty message="No facilities match those filters. Try removing a filter or choosing a wider area." />
+      {loading ? (
+        <Feedback kind="info" message={submittedQ ? `Searching for “${submittedQ}”…` : 'Searching…'} />
+      ) : error ? (
+        <Feedback kind="error" message={`Search did not work: ${error}`} actionLabel="Try again" onAction={results.retry} />
+      ) : results.data && total === 0 ? (
+        <Feedback
+          kind="empty"
+          message={`No facilities found${submittedQ ? ` for “${submittedQ}”` : ''}. Check the spelling, try a nearby town, or remove a filter.`}
+        />
+      ) : results.data ? (
+        <Feedback kind="ok" message={describeResults(results.data, filters, !!coords)} />
       ) : null}
+      <BusyLegend />
+      {loading ? <Loading message="Searching…" /> : null}
     </View>
   );
 
@@ -299,7 +412,37 @@ const styles = StyleSheet.create({
     padding: 16,
     ...shadow,
   },
+  label: { fontSize: 14, fontWeight: '600', color: '#1e293b', marginBottom: 6 },
+  searchBar: { flexDirection: 'row', gap: 8 },
+  hint: { fontSize: 13, color: colors.inkSoft, marginTop: 6 },
+  suggestions: {
+    marginTop: 6,
+    padding: 6,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.white,
+    ...shadow,
+  },
+  suggestion: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderRadius: 8, minHeight: 48 },
+  suggestionPressed: { backgroundColor: colors.brandTint },
+  suggestionText: { flex: 1 },
+  kind: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    color: colors.inkSoft,
+    backgroundColor: '#f1f5f9',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: radius.pill,
+    overflow: 'hidden',
+  },
+  kindPlace: { color: colors.amber, backgroundColor: colors.amberTint },
+  suggestionTitle: { fontSize: 15, fontWeight: '700', color: colors.ink },
+  suggestionDetail: { fontSize: 13, color: colors.inkSoft },
   searchRow: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,

@@ -158,14 +158,14 @@ function plural(count, one, many) {
 
 /* One sentence saying what was found, in the words the user searched with. */
 function describeResults(body, params) {
+  const [one, many] = RESULT_NOUN[params.category] || ['facility', 'facilities'];
   if (body.matched_place) {
-    let text = `Found ${plural(body.place_total, 'facility', 'facilities')} in ${body.matched_place}`;
+    let text = `Found ${plural(body.place_total, one, many)} in ${body.matched_place}`;
     const elsewhere = body.total - body.place_total;
     if (elsewhere > 0) text += `, and ${elsewhere.toLocaleString()} named after it elsewhere`;
     return `${text}.`;
   }
   const where = [params.city, params.district, params.region].find(Boolean);
-  const [one, many] = RESULT_NOUN[params.category] || ['facility', 'facilities'];
   let text = `Found ${plural(body.total, one, many)}`;
   if (params.q) text += ` for “${params.q}”`;
   if (where) text += ` in ${where}`;

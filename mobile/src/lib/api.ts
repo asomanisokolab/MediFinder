@@ -11,6 +11,20 @@ export const API_ORIGIN: string =
 const API = `${API_ORIGIN}/api/v1`;
 
 export type Category = 'hospital' | 'clinic' | 'laboratory' | 'pharmacy' | 'hearse' | 'caregiver';
+/* Kinds of care one facility can offer (a hospital's laboratory, pharmacy...). */
+export type CareType = Category | 'imaging' | 'dental' | 'eye' | 'maternity';
+export type BusyLevel = 'not_busy' | 'less_busy' | 'busy';
+
+/* Red busy, yellow less busy, green not busy; "unknown" outside opening hours.
+   source: facility (staff), visitors, predicted, or hours. */
+export interface Busy {
+  level: BusyLevel | 'unknown';
+  label: string;
+  source: 'facility' | 'visitors' | 'predicted' | 'hours';
+  detail: string;
+  updated_at: string | null;
+  reports: number;
+}
 
 export interface Beds {
   total_beds: number | null;
@@ -47,7 +61,15 @@ export interface FacilitySummary {
   last_verified: string | null;
   distance_km: number | null;
   services: string[];
+  care_types: CareType[];
   beds: Beds | null;
+  busy: Busy | null;
+}
+
+export interface ServiceDetail {
+  service_name: string;
+  is_active: boolean;
+  care_type: CareType;
 }
 
 export interface FacilityDetail extends FacilitySummary {
@@ -58,6 +80,7 @@ export interface FacilityDetail extends FacilitySummary {
   ambulance_phone: string;
   ambulance_provider_id: number | null;
   insurance: string[];
+  service_detail: ServiceDetail[];
   last_updated: string;
 }
 
@@ -95,6 +118,15 @@ export interface Page<T> {
   page_size: number;
   pages: number;
   data_verified: boolean;
+  /* Set when the search text names a place: results are what is in it,
+     then (beyond place_total) facilities named after it elsewhere. */
+  matched_place?: string | null;
+  place_total?: number | null;
+}
+
+export interface Suggestions {
+  places: { name: string; region: string; count: number }[];
+  facilities: { id: number; name: string; category: Category; city: string; region: string }[];
 }
 
 export interface Emergency {
@@ -202,6 +234,10 @@ export const api = {
     }),
   facility: (id: string | number, coords?: Coords | null) =>
     request<FacilityDetail>(`/facilities/${id}`, { lat: coords?.lat, lng: coords?.lng }),
+  suggest: (q: string) => request<Suggestions>('/facilities/suggest', { q }),
+  // Someone at the facility says how busy it is; once per 20 minutes per facility.
+  reportBusy: (id: number, level: BusyLevel) =>
+    request<Busy>(`/facilities/${id}/busy-reports`, {}, { method: 'POST', body: JSON.stringify({ level }) }),
 
   providers: (params: { region?: string; q?: string; lat?: number; lng?: number; page?: number }) =>
     request<Page<ProviderSummary>>('/ambulance/providers', { ...params, page_size: 20 }),

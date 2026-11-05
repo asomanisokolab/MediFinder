@@ -5,7 +5,7 @@ import { FlatList, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { ProviderCard } from '@/components/Cards';
 import { Picker } from '@/components/Picker';
-import { Button, Card, DataBanner, Empty, ErrorBox, Loading, Notice } from '@/components/ui';
+import { Button, Card, DataBanner, Feedback, Loading, Notice } from '@/components/ui';
 import { api, type ProviderSummary } from '@/lib/api';
 import { call112 } from '@/lib/format';
 import { useLocation } from '@/lib/location';
@@ -72,6 +72,12 @@ export default function Ambulance() {
     }
   }
 
+  function describe(total: number) {
+    const count = total === 1 ? '1 provider' : `${total.toLocaleString()} providers`;
+    if (covering) return `Found ${count} covering your area, nearest first.`;
+    return `Found ${count}${submittedQ ? ` for “${submittedQ}”` : ''}${region ? ` in ${region}` : ''}.`;
+  }
+
   const header = (
     <View style={styles.headerArea}>
       <View>
@@ -107,24 +113,38 @@ export default function Ambulance() {
         ) : null}
         <View style={{ height: 12 }} />
         <Picker label="Or choose a region" value={region} onChange={setRegion} options={regions.map((r) => ({ value: r, label: r }))} placeholder="All regions" />
-        <TextInput
-          value={q}
-          onChangeText={setQ}
-          onSubmitEditing={() => setSubmittedQ(q.trim())}
-          placeholder="Provider name"
-          placeholderTextColor={colors.muted}
-          returnKeyType="search"
-          style={styles.input}
-          accessibilityLabel="Search by provider name"
-        />
+        <View style={styles.searchBar}>
+          <TextInput
+            value={q}
+            onChangeText={setQ}
+            onSubmitEditing={() => setSubmittedQ(q.trim())}
+            placeholder="Provider name or town"
+            placeholderTextColor={colors.muted}
+            returnKeyType="search"
+            style={[styles.input, styles.searchInput]}
+            accessibilityLabel="Search by provider name or town"
+          />
+          <Button
+            label="Search"
+            icon="search"
+            loading={loading && !covering}
+            loadingLabel="Searching…"
+            onPress={() => setSubmittedQ(q.trim())}
+          />
+        </View>
       </Card>
 
       <Text style={styles.resultsTitle}>{covering ? 'Covering your location' : 'Providers'}</Text>
-      {loading ? <Loading message="Finding providers…" /> : null}
-      {error ? <ErrorBox message={error} onRetry={results.retry} /> : null}
-      {!loading && !error && items.length === 0 ? (
-        <Empty message="No ambulance providers found. Try another region, or call 112." />
+      {loading ? (
+        <Feedback kind="info" message={covering ? 'Finding providers covering you…' : 'Searching…'} />
+      ) : error ? (
+        <Feedback kind="error" message={`Could not load providers: ${error}`} actionLabel="Try again" onAction={results.retry} />
+      ) : results.data && items.length === 0 ? (
+        <Feedback kind="empty" message="No ambulance providers found. Try another region, or call 112." />
+      ) : results.data ? (
+        <Feedback kind="ok" message={describe(results.data.total)} />
       ) : null}
+      {loading ? <Loading message="Finding providers…" /> : null}
     </View>
   );
 
@@ -163,4 +183,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
   },
   resultsTitle: { fontSize: 20, fontWeight: '800', color: colors.ink },
+  searchBar: { flexDirection: 'row', gap: 8, marginTop: 4 },
+  searchInput: { flex: 1 },
 });

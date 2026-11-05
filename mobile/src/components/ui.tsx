@@ -24,6 +24,7 @@ export function Button({
   icon,
   disabled,
   loading,
+  loadingLabel,
   style,
 }: {
   label: string;
@@ -31,10 +32,12 @@ export function Button({
   variant?: Variant;
   icon?: IconName;
   disabled?: boolean;
+  /** Grey with a spinner while a request runs, and not pressable. */
   loading?: boolean;
+  loadingLabel?: string;
   style?: StyleProp<ViewStyle>;
 }) {
-  const palette = BUTTON[variant];
+  const palette = loading ? LOADING : BUTTON[variant];
   return (
     <Pressable
       accessibilityRole="button"
@@ -45,7 +48,7 @@ export function Button({
         styles.button,
         { backgroundColor: palette.bg, borderColor: palette.border },
         pressed && { opacity: 0.85 },
-        (disabled || loading) && { opacity: 0.55 },
+        disabled && !loading && { opacity: 0.55 },
         style,
       ]}>
       {loading ? (
@@ -53,7 +56,7 @@ export function Button({
       ) : icon ? (
         <Ionicons name={icon} size={19} color={palette.fg} />
       ) : null}
-      <Text style={[styles.buttonText, { color: palette.fg }]}>{label}</Text>
+      <Text style={[styles.buttonText, { color: palette.fg }]}>{loading && loadingLabel ? loadingLabel : label}</Text>
     </Pressable>
   );
 }
@@ -65,7 +68,9 @@ const BUTTON: Record<Variant, { bg: string; fg: string; border: string }> = {
   dark: { bg: colors.brandDeep, fg: colors.white, border: colors.brandDeep },
 };
 
-type ChipTone = 'brand' | 'grey' | 'green' | 'amber' | 'red' | 'dental';
+const LOADING = { bg: '#e2e8f0', fg: '#475569', border: '#cbd5e1' };
+
+type ChipTone = 'brand' | 'grey' | 'green' | 'amber' | 'red' | 'dental' | 'care' | 'lab';
 
 const CHIP: Record<ChipTone, { bg: string; fg: string; border: string }> = {
   brand: { bg: colors.brandTint, fg: colors.brandDark, border: colors.brandLine },
@@ -74,6 +79,8 @@ const CHIP: Record<ChipTone, { bg: string; fg: string; border: string }> = {
   amber: { bg: colors.amberTint, fg: colors.amber, border: '#f0d49a' },
   red: { bg: colors.redTint, fg: colors.redDark, border: '#f0bcbc' },
   dental: { bg: '#f0e9fb', fg: '#5b2ca8', border: '#d7c6f2' },
+  care: { bg: '#eef2ff', fg: '#3730a3', border: '#c7d2fe' },
+  lab: { bg: '#ecfeff', fg: '#155e75', border: '#a5f3fc' },
 };
 
 export function Chip({ label, tone = 'brand' }: { label: string; tone?: ChipTone }) {
@@ -145,6 +152,43 @@ export function Empty({ message }: { message: string }) {
     <View style={styles.state}>
       <Ionicons name="search-outline" size={22} color={colors.muted} />
       <Text style={styles.stateText}>{message}</Text>
+    </View>
+  );
+}
+
+/* What just happened: results found, nothing found, sent, failed. */
+type FeedbackKind = 'ok' | 'info' | 'empty' | 'error';
+const FEEDBACK: Record<FeedbackKind, { bg: string; fg: string; border: string; icon: IconName }> = {
+  ok: { bg: colors.greenTint, fg: colors.green, border: '#b6ddca', icon: 'checkmark-circle' },
+  info: { bg: colors.brandTint, fg: colors.brandDeep, border: colors.brandLine, icon: 'information-circle' },
+  empty: { bg: colors.amberTint, fg: colors.amber, border: '#f0d49a', icon: 'help-circle' },
+  error: { bg: colors.redTint, fg: colors.redDark, border: '#f0bcbc', icon: 'alert-circle' },
+};
+
+export function Feedback({
+  kind,
+  message,
+  actionLabel,
+  onAction,
+}: {
+  kind: FeedbackKind;
+  message: string;
+  actionLabel?: string;
+  onAction?: () => void;
+}) {
+  const f = FEEDBACK[kind];
+  return (
+    <View
+      style={[styles.feedback, { backgroundColor: f.bg, borderColor: f.border }]}
+      accessibilityLiveRegion="polite"
+      accessibilityRole={kind === 'error' ? 'alert' : undefined}>
+      <Ionicons name={f.icon} size={20} color={f.fg} />
+      <Text style={[styles.feedbackText, { color: f.fg }]}>{message}</Text>
+      {actionLabel && onAction ? (
+        <Text style={[styles.retry, { color: f.fg }]} onPress={onAction} accessibilityRole="button">
+          {actionLabel}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -250,4 +294,15 @@ export const styles = StyleSheet.create({
   },
   bannerTitle: { color: colors.amber, fontWeight: '800', marginBottom: 2 },
   bannerText: { color: colors.amber, fontSize: 13, lineHeight: 18 },
+  feedback: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    flexWrap: 'wrap',
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+  },
+  feedbackText: { flex: 1, minWidth: 180, fontSize: 14.5, fontWeight: '600', lineHeight: 20 },
 });

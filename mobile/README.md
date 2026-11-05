@@ -5,11 +5,11 @@ TypeScript. It contains only the public directory:
 
 | Tab / screen | What it does |
 | --- | --- |
-| **Find care** | Search by name, community, town or district; category chips; Region → District → City pickers; 24-hour, ambulance, ownership, insurance and service filters; "Use my location" sorts by distance; results load as you scroll |
+| **Find care** | Search box with its own Search button (grey with a spinner while searching) and suggestions: a place lists everything in it, a facility opens its profile; a message says what was found; category chips including Laboratories, Scan and X-ray, Dental, Eye care and Maternity; Region → District → City pickers; 24-hour, ambulance, ownership, insurance and service filters; "Use my location" sorts by distance; results load as you scroll |
 | **Emergency** | Opened from the red button. Uses GPS (or asks for a region), then shows **Call 112**, the nearest open facilities and the ambulance providers covering you |
-| **Ambulance** | Providers covering your location, or browse by region and name |
+| **Ambulance** | Providers covering your location, or browse by region and name or town, with a Search button and a results message |
 | **Contact us** | Request a listing; errors shown under each field; opens a thank-you screen |
-| Facility / provider profile | Call, directions, beds or fleet, services, insurance, coverage, district and community, and the source credit |
+| Facility / provider profile | Call, directions, **how busy it is now** (red busy, yellow less busy, green not busy, with where the status came from) and buttons to report it, beds or fleet, services grouped by kind of care (hospital, laboratory, pharmacy...), insurance, coverage, district and community, and the source credit |
 
 There is **no admin or superadmin** anywhere in the app. Organizations
 manage their listing on the website.

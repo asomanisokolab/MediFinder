@@ -1,6 +1,6 @@
 import { Linking } from 'react-native';
 
-import type { Category, FacilitySummary, ProviderSummary } from './api';
+import type { Busy, CareType, Category, FacilitySummary, ProviderSummary } from './api';
 
 export const CATEGORY_LABEL: Record<Category, string> = {
   hospital: 'Hospital',
@@ -9,6 +9,27 @@ export const CATEGORY_LABEL: Record<Category, string> = {
   pharmacy: 'Pharmacy / medical store',
   hearse: 'Hearse service',
   caregiver: 'Caregiver',
+};
+
+export const CARE_TYPE_LABEL: Record<CareType, string> = {
+  hospital: 'Hospital',
+  clinic: 'Clinic',
+  laboratory: 'Laboratory',
+  pharmacy: 'Pharmacy',
+  imaging: 'Scan and X-ray',
+  dental: 'Dental',
+  eye: 'Eye care',
+  maternity: 'Maternity',
+  hearse: 'Hearse service',
+  caregiver: 'Caregiving',
+};
+
+/* Where a busy status came from, so a prediction never reads as a check. */
+export const BUSY_SOURCE: Record<Busy['source'], string> = {
+  facility: 'Facility update',
+  visitors: 'Visitor reports',
+  predicted: 'Predicted',
+  hours: 'Opening hours',
 };
 
 export const COST_LABEL: Record<string, string> = {
