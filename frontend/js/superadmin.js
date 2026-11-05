@@ -431,7 +431,7 @@ function directoryPanel() {
     type: 'submit',
     class: 'search-btn',
     'aria-label': 'Search',
-    html: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span>Search</span>',
+    html: '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span>Search</span>',
   });
   search.feedback = el('div', { class: 'feedback', role: 'status', 'aria-live': 'polite', hidden: true });
   search.results = el('div', { class: 'sa-results' });
@@ -486,7 +486,7 @@ function directoryPanel() {
     el('label', { for: 'sa-q', text: 'Search the directory' }),
     el('div', { class: 'searchbar' }, [
       el('div', { class: 'search-box' }, [
-        el('span', { class: 'search-icon', html: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>' }),
+        el('span', { class: 'search-icon', html: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>' }),
         search.q,
       ]),
       search.button,

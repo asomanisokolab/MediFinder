@@ -942,3 +942,5 @@ button.danger-outline:hover { background: var(--red-tint); color: var(--red-dark
 @media (min-width: 1200px) {
   .stats { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 }
+
+.search-icon svg { display: block; width: 100%; height: 100%; }
