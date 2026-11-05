@@ -46,6 +46,18 @@ app.add_middleware(
 app.add_middleware(RateLimitMiddleware)
 
 
+@app.middleware("http")
+async def revalidate_site_files(request, call_next):
+    """Pages, scripts and styles change together on every deploy. Without
+    this a browser can keep an old script for days and run it against the
+    new API. no-cache still lets it reuse its copy when the ETag matches,
+    so an unchanged file costs one tiny request."""
+    response = await call_next(request)
+    if not request.url.path.startswith("/api/") and "cache-control" not in response.headers:
+        response.headers["Cache-Control"] = "no-cache"
+    return response
+
+
 for router in (facilities.router, ambulance.router, emergency.router,
                reference.router, contact.router, admin.router, superadmin.router):
     app.include_router(router, prefix=settings.API_PREFIX)
