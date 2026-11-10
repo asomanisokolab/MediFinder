@@ -1,7 +1,7 @@
 /* Find care: emergency entry point, search and filters, results. */
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { BusyLegend, FacilityCard } from '@/components/Cards';
@@ -73,7 +73,6 @@ export default function FindCare() {
   const { coords, locating, locate, forget } = useLocation();
 
   const [q, setQ] = useState('');
-  const [submittedQ, setSubmittedQ] = useState('');
   // Suggestions follow the typed text after a short pause.
   const [suggestText, setSuggestText] = useState('');
   const suggestTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -89,20 +88,46 @@ export default function FindCare() {
   const [showFilters, setShowFilters] = useState(false);
   const [locateMessage, setLocateMessage] = useState('');
 
+  // The choices above are only a draft; this is the search actually shown.
+  // It changes when the user presses Search, so choosing does not search.
+  const [applied, setApplied] = useState<FacilityFilters>({});
+  // After pressing Search the form folds away if anything is found.
+  const [wantFold, setWantFold] = useState(false);
+  const listRef = useRef<FlatList<FacilitySummary>>(null);
+  const pendingScroll = useRef(false);
+
+  function runSearch(text = q) {
+    if (suggestTimer.current) clearTimeout(suggestTimer.current);
+    const typed = text.trim();
+    setQ(text);
+    setSuggestText(typed);
+    setApplied({
+      q: typed,
+      category,
+      region,
+      district,
+      city,
+      type: ownership,
+      service: service ? [service] : undefined,
+      insurance,
+      is_24_hour: is24,
+      has_ambulance: hasAmbulance,
+    });
+    setWantFold(true);
+    pendingScroll.current = true;
+  }
+
   function changeQ(text: string) {
     setQ(text);
     if (suggestTimer.current) clearTimeout(suggestTimer.current);
     suggestTimer.current = setTimeout(() => setSuggestText(text.trim()), 250);
   }
-  function submitSearch(text = q) {
-    if (suggestTimer.current) clearTimeout(suggestTimer.current);
-    setQ(text);
-    setSubmittedQ(text.trim());
-    setSuggestText(text.trim());
-  }
   function clearSearch() {
-    submitSearch('');
+    if (suggestTimer.current) clearTimeout(suggestTimer.current);
+    setQ('');
+    setSuggestText('');
   }
+  const submittedQ = applied.q ?? '';
   const suggestions = useQuery(suggestText.length >= 2 ? `suggest:${suggestText}` : null, () =>
     api.suggest(suggestText)
   );
@@ -135,21 +160,7 @@ export default function FindCare() {
     setCity('');
   }
 
-  const filters: FacilityFilters = {
-    q: submittedQ,
-    category,
-    region,
-    district,
-    city,
-    type: ownership,
-    service: service ? [service] : undefined,
-    insurance,
-    is_24_hour: is24,
-    has_ambulance: hasAmbulance,
-    lat: coords?.lat,
-    lng: coords?.lng,
-    page_size: 20,
-  };
+  const filters: FacilityFilters = { ...applied, lat: coords?.lat, lng: coords?.lng, page_size: 20 };
   const results = useQuery(JSON.stringify(filters), () => api.searchFacilities({ ...filters, page: 1 }));
 
   // Later pages, appended as the list scrolls. Kept with the search they belong to.
@@ -189,34 +200,83 @@ export default function FindCare() {
     try {
       await locate();
       setLocateMessage('Showing the nearest care first.');
+      runSearch();
     } catch (err) {
       setLocateMessage((err as Error).message);
     }
   }
 
   const activeFilters = [ownership, service, insurance].filter(Boolean).length + (is24 ? 1 : 0) + (hasAmbulance ? 1 : 0);
+  const folded = wantFold && !loading && !error && total > 0;
+
+  // Once a Search press has an answer: results found, the folded page starts
+  // with the summary, so go to the top; nothing found, the message is the
+  // last thing on the page, so go to the end.
+  const answered = !loading && (results.data !== undefined || error !== '');
+  useEffect(() => {
+    if (!answered || !pendingScroll.current) return;
+    pendingScroll.current = false;
+    // After the list has resized to its new content, or the scroll is lost.
+    const timer = setTimeout(() => {
+      if (folded) listRef.current?.scrollToOffset({ offset: 0, animated: true });
+      // The list's own scrollToEnd goes by its last item, and there is none.
+      else listRef.current?.getNativeScrollRef()?.scrollToEnd({ animated: true });
+    }, 120);
+    return () => clearTimeout(timer);
+  }, [answered, folded, results.key]);
+
+  /* The choices behind the results, in a few words. */
+  function summary() {
+    const parts: string[] = [];
+    if (applied.q) parts.push(`“${applied.q}”`);
+    const kind = CATEGORIES.find((c) => c.value && c.value === applied.category);
+    if (kind) parts.push(kind.label);
+    const where = [applied.city, applied.district, applied.region].filter(Boolean);
+    if (where.length) parts.push(where.join(', '));
+    if (coords) parts.push('near you');
+    const extra = [applied.type, applied.service?.length, applied.insurance, applied.is_24_hour, applied.has_ambulance]
+      .filter(Boolean).length;
+    if (extra) parts.push(extra === 1 ? '1 more filter' : `${extra} more filters`);
+    return parts.length ? parts.join(' · ') : 'All types of care, all of Ghana';
+  }
 
   const header = (
     <View style={styles.headerArea}>
-      <View style={styles.hero}>
-        <Text style={styles.eyebrow}>ALL 16 REGIONS OF GHANA</Text>
-        <Text style={styles.heroTitle}>Find care near you</Text>
-        <Text style={styles.heroText}>
-          Hospitals, clinics, laboratories, pharmacies, ambulances, hearse services and caregivers.
-        </Text>
+      {/* With results showing, only the emergency button stays above them. */}
+      <View style={folded ? null : styles.hero}>
+        {folded ? null : (
+          <>
+            <Text style={styles.eyebrow}>ALL 16 REGIONS OF GHANA</Text>
+            <Text style={styles.heroTitle}>Find care near you</Text>
+            <Text style={styles.heroText}>
+              Hospitals, clinics, laboratories, pharmacies, ambulances, hearse services and caregivers.
+            </Text>
+          </>
+        )}
         <Pressable
           onPress={() => router.push('/emergency')}
           accessibilityRole="button"
           accessibilityHint="Finds the nearest open facilities and ambulance providers"
-          style={({ pressed }) => [styles.emergency, pressed && { backgroundColor: colors.redDark }]}>
+          style={({ pressed }) => [styles.emergency, folded && { marginTop: 0 }, pressed && { backgroundColor: colors.redDark }]}>
           <Ionicons name="pulse" size={26} color={colors.white} />
           <Text style={styles.emergencyText}>Emergency — find help now</Text>
         </Pressable>
-        <Text style={styles.heroNote}>Nearest open facilities and the ambulances covering your area.</Text>
+        {folded ? null : (
+          <Text style={styles.heroNote}>Nearest open facilities and the ambulances covering your area.</Text>
+        )}
       </View>
 
       <DataBanner />
 
+      {folded ? (
+        <View style={styles.summary}>
+          <View style={styles.summaryText}>
+            <Text style={styles.summaryLabel}>SHOWING RESULTS FOR</Text>
+            <Text style={styles.summaryValue}>{summary()}</Text>
+          </View>
+          <Button label="Change search" icon="options-outline" variant="secondary" onPress={() => setWantFold(false)} />
+        </View>
+      ) : (
       <View style={styles.panel}>
         <Text style={styles.label}>Facility name or place</Text>
         <View style={styles.searchBar}>
@@ -225,7 +285,7 @@ export default function FindCare() {
             <TextInput
               value={q}
               onChangeText={changeQ}
-              onSubmitEditing={() => submitSearch()}
+              onSubmitEditing={() => runSearch()}
               placeholder="e.g. Koforidua"
               placeholderTextColor={colors.muted}
               returnKeyType="search"
@@ -239,14 +299,14 @@ export default function FindCare() {
               </Pressable>
             ) : null}
           </View>
-          <Button label="Search" icon="search" loading={loading} loadingLabel="Searching…" onPress={() => submitSearch()} />
+          <Button label="Search" icon="search" loading={loading} loadingLabel="Searching…" onPress={() => runSearch()} />
         </View>
         {showSuggestions && suggestions.data ? (
           <View style={styles.suggestions} accessibilityLabel="Suggestions">
             {suggestions.data.places.map((p) => (
               <Pressable
                 key={`place:${p.name}:${p.region}`}
-                onPress={() => submitSearch(p.name)}
+                onPress={() => runSearch(p.name)}
                 style={({ pressed }) => [styles.suggestion, pressed && styles.suggestionPressed]}
                 accessibilityRole="button"
                 accessibilityHint="Lists every facility in this place">
@@ -279,7 +339,7 @@ export default function FindCare() {
           </View>
         ) : null}
         <Text style={styles.hint}>
-          {'Type a town to see everything in it, or a facility name to find that facility.'}
+          {'Type a town or a facility name, or choose below, then press Search.'}
         </Text>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categories}>
@@ -302,19 +362,30 @@ export default function FindCare() {
         </View>
         <Picker label="City or town" value={city} onChange={setCity} options={toOptions(cities.data)} disabled={!region} />
 
-        <View style={styles.row}>
+        <View style={styles.actions}>
           <Button
             label={coords ? 'Nearest first' : 'Use my location'}
             icon="locate"
-            variant={coords ? 'primary' : 'secondary'}
+            variant="secondary"
             loading={locating}
+            loadingLabel="Locating…"
             onPress={useMyLocation}
-            style={{ flex: 1 }}
+            style={styles.locateButton}
           />
-          {coords ? (
-            <Button label="Stop" variant="secondary" onPress={() => { forget(); setLocateMessage(''); }} />
-          ) : null}
+          <Button
+            label="Search"
+            icon="search"
+            loading={loading}
+            loadingLabel="Searching…"
+            onPress={() => runSearch()}
+            style={styles.findButton}
+          />
         </View>
+        {coords ? (
+          <Text style={styles.stop} onPress={() => { forget(); setLocateMessage(''); }} accessibilityRole="button">
+            Stop using my location
+          </Text>
+        ) : null}
         {locateMessage ? <Notice>{locateMessage}</Notice> : null}
 
         <Pressable
@@ -341,6 +412,7 @@ export default function FindCare() {
           </View>
         ) : null}
       </View>
+      )}
 
       <View style={styles.resultsHead}>
         <Text style={styles.resultsTitle}>{coords ? 'Nearest to you' : 'Facilities'}</Text>
@@ -351,10 +423,12 @@ export default function FindCare() {
       ) : error ? (
         <Feedback kind="error" message={`Search did not work: ${error}`} actionLabel="Try again" onAction={results.retry} />
       ) : results.data && total === 0 ? (
-        <Feedback
-          kind="empty"
-          message={`No facilities found${submittedQ ? ` for “${submittedQ}”` : ''}. Check the spelling, try a nearby town, or remove a filter.`}
-        />
+        <View>
+          <Feedback
+            kind="empty"
+            message={`No facilities found${submittedQ ? ` for “${submittedQ}”` : ''}. Check the spelling, try a nearby town, or remove a filter.`}
+          />
+        </View>
       ) : results.data ? (
         <Feedback kind="ok" message={describeResults(results.data, filters, !!coords)} />
       ) : null}
@@ -365,6 +439,7 @@ export default function FindCare() {
 
   return (
     <FlatList
+      ref={listRef}
       data={loading || error ? [] : items}
       keyExtractor={(f) => String(f.id)}
       renderItem={({ item }) => <FacilityCard facility={item} />}
@@ -413,6 +488,24 @@ const styles = StyleSheet.create({
     ...shadow,
   },
   label: { fontSize: 14, fontWeight: '600', color: '#1e293b', marginBottom: 6 },
+  actions: { flexDirection: 'row', gap: 10 },
+  locateButton: { flex: 3, paddingHorizontal: 10 },
+  findButton: { flex: 2, paddingHorizontal: 10 },
+  stop: { marginTop: 10, color: colors.brandDark, fontWeight: '700', textDecorationLine: 'underline' },
+  summary: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 12,
+    padding: 14,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.brandLine,
+    backgroundColor: colors.brandTint,
+  },
+  summaryText: { flexGrow: 1, flexBasis: 180 },
+  summaryLabel: { fontSize: 11.5, fontWeight: '800', letterSpacing: 0.8, color: colors.brandDark },
+  summaryValue: { fontSize: 16, fontWeight: '700', color: colors.ink, marginTop: 2 },
   searchBar: { flexDirection: 'row', gap: 8 },
   hint: { fontSize: 13, color: colors.inkSoft, marginTop: 6 },
   suggestions: {

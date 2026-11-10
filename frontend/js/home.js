@@ -19,6 +19,7 @@ const dom = {};
  'hasamb', 'results', 'results-count', 'results-title', 'pager', 'emergency-btn',
  'emergency-panel', 'locate-btn', 'locate-status', 'search-form', 'service-checks',
  'search-btn', 'search-feedback', 'suggestions', 'busy-legend',
+ 'find-btn', 'search-summary', 'search-summary-value', 'change-search', 'search-title',
 ].forEach((id) => {
   dom[id] = document.getElementById(id);
 });
@@ -111,12 +112,16 @@ function currentParams() {
   return params;
 }
 
-/* ---------- search ---------------------------------------------------- */
-async function search() {
+/* ---------- search ----------------------------------------------------
+   collapse: the user pressed Search. If anything is found the form folds
+   into a one-line summary and the results take the screen; if nothing is
+   found the form stays open so they can change it. */
+async function search({ collapse = false } = {}) {
   const seq = ++searchSeq;
   const params = currentParams();
   hideSuggestions();
   setLoading(dom['search-btn'], true);
+  setLoading(dom['find-btn'], true);
   feedback(dom['search-feedback'], 'info', params.q ? `Searching for “${params.q}”…` : 'Searching…');
   showLoading(dom.results);
   dom.pager.replaceChildren();
@@ -124,17 +129,64 @@ async function search() {
     const body = await api('/facilities/search', params);
     if (seq !== searchSeq) return;
     renderResults(body, params);
+    if (body.items.length && collapse) {
+      foldSearch(params);
+      showResults();
+    } else if (!body.items.length) {
+      unfoldSearch();
+      if (collapse) dom['search-feedback'].scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
   } catch (err) {
     if (seq !== searchSeq) return;
     showError(dom.results, err.message);
     dom['results-count'].textContent = '';
     feedback(dom['search-feedback'], 'error', `Search did not work: ${err.message}`, {
       label: 'Try again',
-      onClick: search,
+      onClick: () => search({ collapse }),
     });
   } finally {
-    if (seq === searchSeq) setLoading(dom['search-btn'], false);
+    if (seq === searchSeq) {
+      setLoading(dom['search-btn'], false);
+      setLoading(dom['find-btn'], false);
+    }
   }
+}
+
+function newSearch() {
+  state.page = 1;
+  search({ collapse: true });
+}
+
+/* The choices behind the current results, in a few words. */
+function searchSummary(params) {
+  const option = (select) => select.options[select.selectedIndex];
+  const parts = [];
+  if (params.q) parts.push(`“${params.q}”`);
+  if (params.category) parts.push(option(dom.category).text);
+  const where = [params.city, params.district, params.region].filter(Boolean);
+  if (where.length) parts.push(where.join(', '));
+  if (state.coords) parts.push('near you');
+  const extra = params.service.length + [params.insurance, params.classification, params.type,
+    params.is_24_hour, params.has_ambulance].filter(Boolean).length;
+  if (extra) parts.push(extra === 1 ? '1 more filter' : `${extra} more filters`);
+  return parts.length ? parts.join(' · ') : 'All types of care, all of Ghana';
+}
+
+function foldSearch(params) {
+  dom['search-summary-value'].textContent = searchSummary(params);
+  dom['search-summary'].hidden = false;
+  dom['search-form'].hidden = true;
+}
+
+function unfoldSearch() {
+  dom['search-summary'].hidden = true;
+  dom['search-form'].hidden = false;
+}
+
+/* Bring the results into view and move keyboard and screen-reader focus there. */
+function showResults() {
+  dom['results-title'].focus({ preventScroll: true });
+  dom['search-title'].scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 /* What "Looking for" finds, in words: a laboratory search also finds
@@ -252,8 +304,7 @@ async function loadSuggestions() {
     const detail = `${p.region} · ${plural(p.count, 'listing', 'listings')}`;
     rows.push(suggestionRow(rows.length, 'place', p.name, detail, () => {
       dom.q.value = p.name;
-      state.page = 1;
-      search();
+      newSearch();
     }));
   });
   body.facilities.forEach((f) => {
@@ -361,8 +412,7 @@ async function locate() {
   } finally {
     setLoading(dom['locate-btn'], false);
   }
-  state.page = 1;
-  search();
+  newSearch();
 }
 
 /* ---------- emergency mode (PRD 5.1.4) -------------------------------- */
@@ -447,8 +497,13 @@ function renderEmergency(body) {
 /* ---------- wiring ---------------------------------------------------- */
 dom['search-form'].addEventListener('submit', (event) => {
   event.preventDefault();
-  state.page = 1;
-  search();
+  newSearch();
+});
+dom['find-btn'].addEventListener('click', newSearch);
+dom['change-search'].addEventListener('click', () => {
+  unfoldSearch();
+  dom['search-title'].scrollIntoView({ behavior: 'smooth', block: 'start' });
+  dom.q.focus({ preventScroll: true });
 });
 dom['emergency-btn'].addEventListener('click', emergency);
 // The sticky phone bar links here with ?emergency=1; on this page, skip the reload.
@@ -457,33 +512,10 @@ document.getElementById('mobile-emergency').addEventListener('click', (event) =>
   emergency();
 });
 dom['locate-btn'].addEventListener('click', locate);
-// Every choice applies straight away; the Search button is for typed text.
-dom.region.addEventListener('change', async () => {
-  state.page = 1;
-  await loadDistricts();
-  search();
-});
-dom.district.addEventListener('change', async () => {
-  state.page = 1;
-  await loadLocalities();
-  search();
-});
-['category', 'city', 'service-other', 'insurance', 'classification', 'type'].forEach((id) =>
-  dom[id].addEventListener('change', () => {
-    state.page = 1;
-    search();
-  })
-);
-['is24', 'hasamb'].forEach((id) =>
-  dom[id].addEventListener('change', () => {
-    state.page = 1;
-    search();
-  })
-);
-dom['service-checks'].addEventListener('change', () => {
-  state.page = 1;
-  search();
-});
+// Choices only fill in the narrower lists; nothing is searched until the
+// user presses Search.
+dom.region.addEventListener('change', loadDistricts);
+dom.district.addEventListener('change', loadLocalities);
 
 (async function init() {
   renderDataBanner('banner');

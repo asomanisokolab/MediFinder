@@ -5,7 +5,7 @@ TypeScript. It contains only the public directory:
 
 | Tab / screen | What it does |
 | --- | --- |
-| **Find care** | Search box with its own Search button (grey with a spinner while searching) and suggestions: a place lists everything in it, a facility opens its profile; a message says what was found; category chips including Laboratories, Scan and X-ray, Dental, Eye care and Maternity; Region → District → City pickers; 24-hour, ambulance, ownership, insurance and service filters; "Use my location" sorts by distance; results load as you scroll |
+| **Find care** | Choose what you need, then press Search (beside the search box or beside Use my location; grey with a spinner while searching). Results found: the form folds into a summary with Change search and the results come into view; nothing found: the form stays open. Suggestions while typing: a place lists everything in it, a facility opens its profile; a message says what was found; category chips including Laboratories, Scan and X-ray, Dental, Eye care and Maternity; Region → District → City pickers; 24-hour, ambulance, ownership, insurance and service filters; "Use my location" sorts by distance; results load as you scroll |
 | **Emergency** | Opened from the red button. Uses GPS (or asks for a region), then shows **Call 112**, the nearest open facilities and the ambulance providers covering you |
 | **Ambulance** | Providers covering your location, or browse by region and name or town, with a Search button and a results message |
 | **Contact us** | Request a listing; errors shown under each field; opens a thank-you screen |

@@ -66,7 +66,12 @@ test"), so "clinics in Ho" works. While typing, suggestions show places
 profile). The Search button turns grey with a spinner while a search runs,
 and a message above the results says what was found ("Found 32 facilities in
 Koforidua"), that nothing was found, or that the search failed, with a Try
-again button. Dropdowns apply as soon as they change.
+again button. Choosing "Looking for", region, district or town does not search
+by itself: there is a second Search button beside **Use my location** for
+that. When a search finds something, the form folds into a one-line summary
+("Laboratories · New Juaben South Municipal, Eastern") with a **Change search**
+button and the page moves to the results; when nothing is found the form stays
+open so the user can change it.
 
 **Busy status: red busy, yellow less busy, green not busy.** Every hospital,
 clinic, laboratory and pharmacy shows one, on the result card and the
