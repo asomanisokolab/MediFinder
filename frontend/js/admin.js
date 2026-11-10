@@ -262,7 +262,10 @@ function renderFacilityDash(facility, staleHours, locationConfirmed, careTypes) 
   if (banner) mount.appendChild(banner);
 
   if (facility.busy) mount.appendChild(busyNowCard(facility));
-  if (HEALTH_CATEGORIES.includes(facility.category)) mount.appendChild(bedCard(facility, staleHours));
+  if (HEALTH_CATEGORIES.includes(facility.category)) {
+    mount.appendChild(bedCard(facility, staleHours));
+    mount.appendChild(wardsCard(facility));
+  }
   mount.appendChild(offeringsCard(facility, careTypes));
   mount.appendChild(advancedSettings(facility, locationConfirmed));
 
@@ -324,6 +327,42 @@ function bedCard(facility, staleHours) {
     }
   });
   return bedForm;
+}
+
+/* ---------- wards ------------------------------------------------------ */
+function wardsCard(facility) {
+  const message = el('div');
+  const boxes = Object.entries(WARD_LABEL).map(([value, label]) =>
+    el('label', {}, [
+      el('input', { type: 'checkbox', value, checked: (facility.wards || []).includes(value) }),
+      label,
+    ])
+  );
+  const save = el('button', { type: 'submit' }, 'Save wards');
+  const form = el('form', { class: 'card' }, [
+    el('h2', { style: 'margin-top:0', text: 'Wards' }),
+    el('p', { class: 'notice', text: 'Tick the wards you have. People can search for a facility with a children’s, female or male ward.' }),
+    el('div', { class: 'checks' }, boxes),
+    message,
+    el('div', { style: 'margin-top:14px' }, [save]),
+  ]);
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const wards = Array.from(form.querySelectorAll('input:checked'), (input) => input.value);
+    setLoading(save, true, 'Saving…');
+    try {
+      const result = await api(`/facilities/${facility.id}/wards`, {}, { method: 'PUT', body: { wards } });
+      flash(message, result.wards.length
+        ? `Saved. Your profile lists: ${result.wards.map((w) => WARD_LABEL[w]).join(', ')}.`
+        : 'Saved. No wards listed.');
+      toast('Wards saved');
+    } catch (err) {
+      flash(message, err.message, 'error');
+    } finally {
+      setLoading(save, false);
+    }
+  });
+  return form;
 }
 
 /* ---------- how busy are you? ------------------------------------------ */

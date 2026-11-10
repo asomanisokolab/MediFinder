@@ -17,7 +17,7 @@ import {
   SectionTitle,
 } from '@/components/ui';
 import { api, type Busy, type BusyLevel, type FacilityDetail } from '@/lib/api';
-import { CARE_TYPE_LABEL, call, directions, fmtDistance, fmtWhen, isHealthFacility, placeLine } from '@/lib/format';
+import { CARE_TYPE_LABEL, WARD_LABEL, call, directions, fmtDistance, fmtWhen, isHealthFacility, placeLine } from '@/lib/format';
 import { useLocation } from '@/lib/location';
 import { colors, radius } from '@/lib/theme';
 import { useQuery } from '@/lib/useQuery';
@@ -146,6 +146,8 @@ export default function FacilityProfile() {
   const health = isHealthFacility(facility);
   const credit = SOURCE_CREDIT[facility.source.replace('+seed', '')];
   const details: [string, string][] = [
+    ['Medical facility category', health ? facility.classification : ''],
+    ['Wards', health ? facility.wards.map((w) => WARD_LABEL[w]).join(', ') || 'Not recorded' : ''],
     ['Opening hours', facility.hours || 'Not recorded'],
     ['Phone', facility.phone || 'Not recorded'],
     ['Region', facility.region],

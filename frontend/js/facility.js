@@ -148,6 +148,12 @@ function render(facility) {
     el('section', { class: 'card' }, [
       el('h2', { style: 'margin-top:0', text: 'Details' }),
       el('dl', { class: 'kv' }, [
+        isHealthFacility(facility) ? el('dt', { text: 'Medical facility category' }) : null,
+        isHealthFacility(facility) ? el('dd', { text: facility.classification }) : null,
+        isHealthFacility(facility) ? el('dt', { text: 'Wards' }) : null,
+        isHealthFacility(facility)
+          ? el('dd', { text: (facility.wards || []).map((w) => WARD_LABEL[w]).join(', ') || 'Not recorded' })
+          : null,
         el('dt', { text: 'Opening hours' }),
         el('dd', { text: facility.hours || 'Not recorded' }),
         el('dt', { text: 'Phone' }),

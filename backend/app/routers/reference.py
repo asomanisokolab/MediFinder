@@ -17,6 +17,7 @@ from ..reference import (
     OPERATOR_TYPES,
     SERVICE_CATALOG,
     SERVICE_LEVELS,
+    WARDS,
 )
 from ..schemas import CareTypeOut, ClassificationOut
 
@@ -78,8 +79,10 @@ def list_care_types():
 
 @router.get("/insurance", response_model=list[str])
 def list_insurance(db: Session = Depends(get_db)):
+    """NHIS and the insurance types first, then insurers by name."""
     in_use = set(db.scalars(select(distinct(Insurance.insurance_name))).all())
-    return sorted(set(INSURANCE_PROVIDERS) | {i for i in in_use if i})
+    others = sorted({i for i in in_use if i} - set(INSURANCE_PROVIDERS))
+    return INSURANCE_PROVIDERS[:3] + sorted(INSURANCE_PROVIDERS[3:] + others)
 
 
 @router.get("/classifications", response_model=list[ClassificationOut])
@@ -101,4 +104,5 @@ def list_enums():
         "operator_types": OPERATOR_TYPES,
         "service_levels": SERVICE_LEVELS,
         "cost_bands": COST_BANDS,
+        "wards": [{"value": key, "label": label} for key, label in WARDS.items()],
     }

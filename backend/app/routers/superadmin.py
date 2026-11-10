@@ -23,10 +23,12 @@ from ..models import (
 )
 from ..presenters import ambulance_detail, facility_detail
 from ..reference import (
+    FACILITY_CLASS_NAMES,
     HEALTH_FACILITY_CATEGORIES,
     ORGANIZATION_TYPES,
     REGION_CENTROIDS,
     UNCLASSIFIED,
+    WARDS,
     default_care_type,
     in_ghana,
 )
@@ -161,6 +163,7 @@ def _facility_snapshot(facility: Facility) -> dict:
         "phone": facility.phone,
         "hours": facility.hours,
         "is_24_hour": facility.is_24_hour,
+        "wards": facility.wards,
         "has_ambulance": facility.has_ambulance,
         "ambulance_phone": facility.ambulance_phone,
         "ambulance_provider_id": facility.ambulance_provider_id,
@@ -406,6 +409,8 @@ def update_facility(
     facility = db.get(Facility, facility_id)
     if facility is None:
         raise HTTPException(status_code=404, detail="Facility not found.")
+    if payload.classification not in (*FACILITY_CLASS_NAMES, UNCLASSIFIED):
+        raise HTTPException(status_code=422, detail="Choose a medical facility category.")
     if (
         payload.ambulance_provider_id is not None
         and db.get(AmbulanceProvider, payload.ambulance_provider_id) is None
@@ -448,8 +453,10 @@ def update_facility(
     old_care_types = {s.service_name.casefold(): s.care_type for s in facility.services}
     moved = (payload.lat, payload.lng) != (facility.lat, facility.lng)
     fields = payload.model_dump(
-        exclude={"services", "insurance", "total_beds", "available_beds"}
+        exclude={"services", "insurance", "total_beds", "available_beds", "wards"}
     )
+    if payload.wards is not None:
+        fields["wards"] = ",".join(w for w in WARDS if w in payload.wards)
     if fields.get("district") is None:
         fields.pop("district", None)  # older clients do not send it
     for field, value in fields.items():
@@ -748,9 +755,9 @@ def create_organization(
             detail="That point is outside Ghana. Check latitude and longitude are not swapped.",
         )
     classification = payload.classification.strip()
-    if category in HEALTH_FACILITY_CATEGORIES and not classification:
+    if category in HEALTH_FACILITY_CATEGORIES and classification not in FACILITY_CLASS_NAMES:
         raise HTTPException(
-            status_code=422, detail="Choose a classification for hospitals and clinics."
+            status_code=422, detail="Choose a medical facility category for hospitals and clinics."
         )
 
     # Without coordinates the record sits at the region centroid, unlisted,

@@ -8,7 +8,7 @@ from datetime import timedelta
 
 from .config import settings
 from .models import AmbulanceProvider, Facility, utcnow
-from .reference import CARE_TYPES
+from .reference import CARE_TYPES, WARDS
 
 NOT_UPDATED = "Not updated"
 
@@ -95,6 +95,7 @@ def facility_summary(
         "distance_km": round(distance_km, 1) if distance_km is not None else None,
         "services": sorted(s.service_name for s in facility.services if s.is_active),
         "care_types": care_types(facility),
+        "wards": [w for w in WARDS if w in (facility.wards or "").split(",")],
         "beds": beds_out(facility),
         "busy": busy,
     }

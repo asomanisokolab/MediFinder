@@ -35,6 +35,7 @@ from .models import (
     Service,
     utcnow,
 )
+from .reference import facility_class
 from .security import hash_password
 
 PLACEHOLDER = "+233 30 000 {:04d}"
@@ -289,7 +290,8 @@ def seed(reset: bool = False, with_directory: bool = True) -> None:
                 name=name,
                 type=ftype,
                 category="clinic" if is_clinic else "hospital",
-                classification=level,
+                classification=facility_class(name, "clinic" if is_clinic else "hospital",
+                                              ftype, level, extra),
                 address=f"{city}, {region}",
                 region=region,
                 city=city,

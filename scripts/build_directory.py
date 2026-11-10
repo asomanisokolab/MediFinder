@@ -24,6 +24,10 @@ import zipfile
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
+# The classification rules live with the app, so both agree.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
+from app.reference import facility_class  # noqa: E402
+
 REGIONS = {
     "Ahafo", "Ashanti", "Bono", "Bono East", "Central", "Eastern", "Greater Accra",
     "North East", "Northern", "Oti", "Savannah", "Upper East", "Upper West", "Volta",
@@ -227,23 +231,8 @@ def ownership(tags, name, category):
 
 
 def level(name, category, ftype, services):
-    if category not in ("hospital", "clinic"):
-        return "Not classified"
-    # PRD 5.1.1: standalone dental clinics sit in the Private class whoever owns them.
-    if ftype == "private" or services == ["Dental"]:
-        return "Private"
-    rules = [
-        (r"\bTeaching Hospital\b", "Level A"),
-        (r"\bRegional Hospital\b", "Level B"),
-        (r"\b(District|Municipal|Metropolitan|Government|Govt) Hospital\b", "Level C"),
-        (r"\bPolic?linic\b|\bPolyclinic\b", "Level D"),
-        (r"\bCHPS\b|\bCompound\b|\bHealth Post\b", "Level F"),
-        (r"\bHealth Cent(re|er)\b|\bClinic\b", "Level E"),
-    ]
-    for pattern, value in rules:
-        if re.search(pattern, name, re.I):
-            return value
-    return "Level C" if category == "hospital" else "Level E"
+    """Medical facility category, by the same rules the app uses."""
+    return facility_class(name, category, ftype, "", services)
 
 
 def phone_of(tags):
@@ -450,8 +439,7 @@ def main():
             services += ["Antenatal Care", "Immunisation"]
         record = {
             "source": "who-ssa", "source_ref": "", "name": label[:200], "category": category,
-            "type": ftype, "classification": level(label, category, "government", services)
-            if ftype == "government" else "Private",
+            "type": ftype, "classification": level(label, category, ftype, services),
             "city": "", "town": "", "address": "", "lat": round(lat, 6), "lng": round(lng, 6),
             "phone": "", "hours": "", "is_24_hour": False, "services": services, "website": "",
         }

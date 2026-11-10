@@ -99,15 +99,35 @@ prediction runs on the server and needs no outside AI service, API key or
 running cost.
 
 **What a facility offers.** A facility can offer several kinds of care: a
-hospital can also run a laboratory, a pharmacy and a scan unit. On the admin
-dashboard, **What you offer** has a **Kinds of care** dropdown (Hospital,
-Clinic, Laboratory, Pharmacy, Scan and X-ray, Dental clinic, Eye clinic,
-Maternity home and more; several can be ticked). Under each kind the admin
-lists its services, either tapping suggestions (Malaria test, Full blood
-count…) or typing their own. Any service can be marked as not available now
-or removed. The profile shows services grouped by kind, and the **Looking
-for** filter matches the kind as well as the category: "Laboratories" finds
-standalone labs and every hospital or clinic that runs one.
+hospital can also run a medical laboratory (tests, scans and X-rays) and a
+pharmacy. On the admin dashboard, **What you offer** has a **Kinds of care**
+dropdown (Hospital, Clinic, Medical laboratory, Pharmacy, Hearse service,
+Caregiving; several can be ticked). Under each kind the admin lists its
+services, either tapping suggestions (Malaria test, Full blood count, X-ray,
+Spirometry, Cardio therapy…) or typing their own. Eye, dental and maternity
+care are services of the hospital or clinic. Any service can be marked as not
+available now or removed. The profile shows services grouped by kind, and the
+**Looking for** filter matches the kind as well as the category: "Medical
+laboratories" finds standalone labs and every hospital or clinic that runs
+one.
+
+**Medical facility category.** Hospitals and clinics have one of: CHPS
+compound / Maternity home, Health centre, Polyclinic, District / Municipal
+hospital, Regional hospital, Specialised hospital / clinic, Tertiary
+hospital, Teaching hospital. It is a main dropdown on the home page search,
+shown on the profile, and set by the superadmin. The old Ghana Health Service
+levels were moved across on startup (Level A → Teaching, B → Regional, C →
+District / Municipal, D → Polyclinic, E → Health centre, F → CHPS / Maternity
+home); private facilities, which had no level, get one from their name
+(Specialist, Eye, Dental, Maternity Home…) or stay "Not classified" until
+someone sets it.
+
+**Wards.** Hospitals and clinics tick their wards (Children's, Female, Male)
+on the admin dashboard; the profile lists them and **More filters → Ward**
+finds facilities that have one.
+
+**Insurance.** NHIS, Premium insurance and Assurance insurance come first,
+followed by named insurers.
 
 ---
 
@@ -627,6 +647,7 @@ All endpoints under `/api/v1`, JSON only, paginated, rate limited.
 | PUT | `/facilities/{id}/services` | Facility admin only: turn listed services on or off |
 | PUT | `/facilities/{id}/offerings` | Facility admin only: the full list of services, each with its `care_type`; replaces the old list |
 | PUT | `/facilities/{id}/busy` | Facility admin only: how busy it is now, shown for 3 hours |
+| PUT | `/facilities/{id}/wards` | Facility admin only: `{"wards": ["children", "female", "male"]}` |
 | PUT | `/ambulance/providers/{id}/status` | Provider admin only |
 
 Every organization-admin endpoint except `/admin/me` and `/admin/password`

@@ -58,7 +58,13 @@ _PHARMACY = [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.2, 0.3, 0.45, 0.5, 0.45, 0.4,
 # Monday is the busiest clinic day; weekends are quieter.
 _WEEKDAY_SHIFT = {0: 0.08, 5: -0.15, 6: -0.25}
 # Teaching and regional hospitals are rarely quiet; CHPS compounds rarely full.
-_LEVEL_SHIFT = {"Level A": 0.1, "Level B": 0.06, "Level F": -0.12}
+_LEVEL_SHIFT = {
+    "Teaching hospital": 0.1,
+    "Tertiary hospital": 0.1,
+    "Regional hospital": 0.06,
+    "Specialised hospital / clinic": -0.05,
+    "CHPS compound / Maternity home": -0.12,
+}
 # Most NHIS patients queue at government facilities; private ones see fewer.
 _PRIVATE_SHIFT = -0.18
 

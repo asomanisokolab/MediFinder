@@ -19,6 +19,8 @@ router = APIRouter(prefix="/facilities", tags=["facilities"])
 
 # Words that join a search ("clinics in Ho") but name nothing.
 _FILLER_WORDS = {"in", "at", "near", "around", "the", "of", "and", "&"}
+# Old "Looking for" choices that are now services.
+_OLD_CATEGORY_SERVICE = {"dental": "Dental", "eye": "Eye Care", "maternity": "Maternity"}
 # One person, one report per facility in this window.
 REPORT_COOLDOWN = timedelta(minutes=20)
 
@@ -121,6 +123,7 @@ def _filters(
     insurance: str | None,
     is_24_hour: bool | None,
     has_ambulance: bool | None,
+    wards: list[str] | None = None,
 ):
     """Shared WHERE clauses for every facility listing (PRD 5.1.2)."""
     # A record still on its placeholder location is never listed publicly.
@@ -135,9 +138,16 @@ def _filters(
         conds.append(func.lower(Facility.town) == town.strip().lower())
     if facility_type:
         conds.append(Facility.type == facility_type.strip().lower())
-    if category:
+    wanted = (category or "").strip().lower()
+    # Choices the app offered before they became services of a hospital or
+    # clinic, still sent by older versions.
+    if wanted in _OLD_CATEGORY_SERVICE:
+        services = [*(services or []), _OLD_CATEGORY_SERVICE[wanted]]
+        wanted = ""
+    elif wanted == "imaging":
+        wanted = "laboratory"
+    if wanted:
         # "Laboratories" means labs and every hospital or clinic that runs one.
-        wanted = category.strip().lower()
         conds.append(
             or_(
                 Facility.category == wanted,
@@ -146,6 +156,9 @@ def _filters(
                 ),
             )
         )
+    for ward in wards or []:
+        if ward.strip():
+            conds.append(("," + Facility.wards + ",").like(f"%,{ward.strip().lower()},%"))
     if classification:
         conds.append(func.lower(Facility.classification) == classification.strip().lower())
     if is_24_hour is not None:
@@ -234,6 +247,7 @@ def facilities_nearby(
     insurance: str | None = None,
     is_24_hour: bool | None = None,
     has_ambulance: bool | None = None,
+    wards: list[str] | None = Query(None, alias="ward"),
     q: str | None = None,
     page_no: int = Query(1, ge=1, alias="page"),
     page_size: int = Query(settings.DEFAULT_PAGE_SIZE, ge=1, le=settings.MAX_PAGE_SIZE),
@@ -248,7 +262,7 @@ def facilities_nearby(
 
     conds = _filters(
         region, district, city, town, facility_type, category, classification, services,
-        insurance, is_24_hour, has_ambulance,
+        insurance, is_24_hour, has_ambulance, wards,
     )
     conds += [
         Facility.lat.between(min_lat, max_lat),
@@ -276,6 +290,7 @@ def facilities_search(
     insurance: str | None = None,
     is_24_hour: bool | None = None,
     has_ambulance: bool | None = None,
+    wards: list[str] | None = Query(None, alias="ward"),
     lat: float | None = Query(None, ge=-90, le=90),
     lng: float | None = Query(None, ge=-180, le=180),
     page_no: int = Query(1, ge=1, alias="page"),
@@ -291,7 +306,7 @@ def facilities_search(
     """
     conds, place, place_total = _search(db, _filters(
         region, district, city, town, facility_type, category, classification, services,
-        insurance, is_24_hour, has_ambulance,
+        insurance, is_24_hour, has_ambulance, wards,
     ), q)
     items, total = _list(db, conds, page_no, page_size, q, lat, lng)
     return page(items, total, page_no, page_size, place, place_total)
@@ -355,6 +370,7 @@ def list_facilities(
     insurance: str | None = None,
     is_24_hour: bool | None = None,
     has_ambulance: bool | None = None,
+    wards: list[str] | None = Query(None, alias="ward"),
     q: str | None = None,
     page_no: int = Query(1, ge=1, alias="page"),
     page_size: int = Query(settings.DEFAULT_PAGE_SIZE, ge=1, le=settings.MAX_PAGE_SIZE),
@@ -363,7 +379,7 @@ def list_facilities(
     """List all facilities with optional filters (PRD 6.4)."""
     conds, place, place_total = _search(db, _filters(
         region, district, city, town, facility_type, category, classification, services,
-        insurance, is_24_hour, has_ambulance,
+        insurance, is_24_hour, has_ambulance, wards,
     ), q)
     items, total = _list(db, conds, page_no, page_size, q)
     return page(items, total, page_no, page_size, place, place_total)

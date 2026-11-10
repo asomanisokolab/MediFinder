@@ -130,15 +130,16 @@
         <option value="">All types of care</option>
         <option value="hospital">Hospitals</option>
         <option value="clinic">Clinics</option>
-        <option value="laboratory">Laboratories</option>
+        <option value="laboratory">Medical laboratories (tests, scans and X-rays)</option>
         <option value="pharmacy">Pharmacies and medical stores</option>
-        <option value="imaging">Scan and X-ray</option>
-        <option value="dental">Dental care</option>
-        <option value="eye">Eye care</option>
-        <option value="maternity">Maternity</option>
         <option value="hearse">Hearse services</option>
         <option value="caregiver">Caregivers</option>
       </select>
+    </div>
+
+    <div class="field">
+      <label for="classification">Medical facility category</label>
+      <select id="classification" name="classification"><option value="">All categories</option></select>
     </div>
 
     <div class="row">
@@ -195,8 +196,13 @@
 
         <div class="row">
           <div class="field">
-            <label for="classification">Facility level</label>
-            <select id="classification"><option value="">Any level</option></select>
+            <label for="ward">Ward</label>
+            <select id="ward">
+              <option value="">Any ward</option>
+              <option value="children">Children&rsquo;s ward</option>
+              <option value="female">Female ward</option>
+              <option value="male">Male ward</option>
+            </select>
           </div>
           <div class="field">
             <label for="type">Ownership</label>

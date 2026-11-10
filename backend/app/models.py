@@ -34,7 +34,8 @@ class Facility(Base):
     type: Mapped[str] = mapped_column(String(20), nullable=False)
     # reference.FACILITY_CATEGORIES: hospital, clinic, laboratory, pharmacy, hearse, caregiver
     category: Mapped[str] = mapped_column(String(30), nullable=False, default="hospital")
-    # Level A..F | Private       (PRD 5.1.5)
+    # Medical facility category, a name in reference.FACILITY_CLASS_NAMES
+    # ("Teaching hospital", "Health centre"...), or "Not classified".
     classification: Mapped[str] = mapped_column(String(40), nullable=False)
     address: Mapped[str] = mapped_column(String(300), default="")
     region: Mapped[str] = mapped_column(String(60), nullable=False)
@@ -57,6 +58,8 @@ class Facility(Base):
     phone: Mapped[str] = mapped_column(String(40), default="")
     hours: Mapped[str] = mapped_column(String(120), default="")
     is_24_hour: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Keys of reference.WARDS, comma-separated: "children,female,male".
+    wards: Mapped[str] = mapped_column(String(60), default="")
 
     # PRD 5.1.3: ambulance fields on the facility profile.
     has_ambulance: Mapped[bool] = mapped_column(Boolean, default=False)

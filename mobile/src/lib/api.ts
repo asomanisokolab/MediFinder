@@ -12,7 +12,8 @@ const API = `${API_ORIGIN}/api/v1`;
 
 export type Category = 'hospital' | 'clinic' | 'laboratory' | 'pharmacy' | 'hearse' | 'caregiver';
 /* Kinds of care one facility can offer (a hospital's laboratory, pharmacy...). */
-export type CareType = Category | 'imaging' | 'dental' | 'eye' | 'maternity';
+export type CareType = Category;
+export type Ward = 'children' | 'female' | 'male';
 export type BusyLevel = 'not_busy' | 'less_busy' | 'busy';
 
 /* Red busy, yellow less busy, green not busy; "unknown" outside opening hours.
@@ -62,6 +63,7 @@ export interface FacilitySummary {
   distance_km: number | null;
   services: string[];
   care_types: CareType[];
+  wards: Ward[];
   beds: Beds | null;
   busy: Busy | null;
 }
@@ -206,6 +208,8 @@ export interface FacilityFilters {
   district?: string;
   city?: string;
   type?: string;
+  classification?: string;
+  ward?: string;
   service?: string[];
   insurance?: string;
   is_24_hour?: boolean;
@@ -223,6 +227,7 @@ export const api = {
   localities: (region: string, district?: string) =>
     request<string[]>(`/regions/${encodeURIComponent(region)}/localities`, { district }),
   services: () => request<string[]>('/services'),
+  classifications: () => request<Classification[]>('/classifications'),
   insurance: () => request<string[]>('/insurance'),
 
   // Sorted by distance when lat/lng are given, by name otherwise.

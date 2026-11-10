@@ -12,7 +12,7 @@ const COST_LABEL = {
 const CATEGORY_LABEL = {
   hospital: 'Hospital',
   clinic: 'Clinic',
-  laboratory: 'Laboratory',
+  laboratory: 'Medical laboratory',
   pharmacy: 'Pharmacy / medical store',
   hearse: 'Hearse service',
   caregiver: 'Caregiver',
@@ -20,15 +20,13 @@ const CATEGORY_LABEL = {
 
 /* Kinds of care one facility can offer besides its main category
    (a hospital's laboratory, pharmacy or scan unit). */
+const WARD_LABEL = { children: 'Children’s ward', female: 'Female ward', male: 'Male ward' };
+
 const CARE_TYPE_LABEL = {
   hospital: 'Hospital',
   clinic: 'Clinic',
-  laboratory: 'Laboratory',
+  laboratory: 'Medical laboratory',
   pharmacy: 'Pharmacy',
-  imaging: 'Scan and X-ray',
-  dental: 'Dental',
-  eye: 'Eye care',
-  maternity: 'Maternity',
   hearse: 'Hearse service',
   caregiver: 'Caregiving',
 };
@@ -42,8 +40,8 @@ function isHealthFacility(facility) {
    care it offers ("Laboratory" on a hospital), then ownership. */
 function facilityKindChips(facility) {
   const chips = [el('li', { class: 'chip', text: CATEGORY_LABEL[facility.category] || facility.category })];
-  // "Private" as a level would repeat the ownership chip below.
-  if (isHealthFacility(facility) && facility.classification !== 'Private') {
+  // Only a known category; "Private" (older data) would repeat the ownership chip.
+  if (isHealthFacility(facility) && !['Private', 'Not classified'].includes(facility.classification)) {
     chips.push(el('li', { class: 'chip', text: facility.classification }));
   }
   const extra = (facility.care_types || []).filter((t) => t !== facility.category);

@@ -144,8 +144,8 @@ function categoryChoices() {
 
 function levelChoices() {
   return [
-    ...reference.classifications.map((c) => ({ value: c.level, label: `${c.level} — ${c.name}` })),
-    { value: 'Not classified', label: 'Not classified (pharmacy, lab, hearse, caregiver)' },
+    ...reference.classifications.map((c) => ({ value: c.level, label: c.name })),
+    { value: 'Not classified', label: 'Not classified (not a hospital or clinic, or not known yet)' },
   ];
 }
 
@@ -184,7 +184,7 @@ function facilityEditor(facility, onSaved) {
           editorSelect('type', 'Ownership', facility.type,
             [{ value: 'government', label: 'Government' }, { value: 'private', label: 'Private' }], prefix),
         ]),
-        editorSelect('classification', 'Level', facility.classification, levelChoices(), prefix),
+        editorSelect('classification', 'Medical facility category', facility.classification, levelChoices(), prefix),
       ]),
       group('Location', [
         el('div', { class: 'row' }, [
@@ -207,6 +207,9 @@ function facilityEditor(facility, onSaved) {
           editorField('hours', 'Opening hours', facility.hours, 'text', { prefix, maxlength: 120 }),
         ]),
         editorField('is_24_hour', 'Open 24 hours', facility.is_24_hour, 'checkbox', { prefix }),
+        el('p', { class: 'field-label', text: 'Wards' }),
+        ...Object.entries(WARD_LABEL).map(([value, label]) =>
+          editorField(`ward_${value}`, label, (facility.wards || []).includes(value), 'checkbox', { prefix })),
         editorField('has_ambulance', 'Has its own ambulance', facility.has_ambulance, 'checkbox', { prefix }),
         el('div', { class: 'row' }, [
           editorField('ambulance_phone', 'Ambulance phone', facility.ambulance_phone, 'text', { prefix, maxlength: 40 }),
@@ -242,6 +245,7 @@ function facilityEditor(facility, onSaved) {
           insurance: values.insurance.split(',').map((i) => i.trim()).filter(Boolean),
           total_beds: values.total_beds === '' ? null : Number(values.total_beds),
           available_beds: values.available_beds === '' ? null : Number(values.available_beds),
+          wards: Object.keys(WARD_LABEL).filter((w) => values[`ward_${w}`]),
         },
       });
       toast(`Saved ${values.name}`);
@@ -350,7 +354,7 @@ function statusChips(record, kind) {
   const chips = [];
   if (kind === 'facilities') {
     chips.push(el('li', { class: 'chip', text: CATEGORY_LABEL[record.category] || record.category }));
-    if (HEALTH_CATEGORIES.includes(record.category) && record.classification !== 'Private') {
+    if (HEALTH_CATEGORIES.includes(record.category) && !['Private', 'Not classified'].includes(record.classification)) {
       chips.push(el('li', { class: 'chip', text: record.classification }));
     }
     chips.push(el('li', { class: 'chip grey', text: record.type === 'government' ? 'Government' : 'Private' }));
@@ -662,9 +666,9 @@ function organizationForm(request) {
     [{ value: 'private', label: 'Private' }, { value: 'government', label: 'Government' }], prefix
   );
   const classificationField = editorSelect(
-    'classification', 'Level', '',
+    'classification', 'Medical facility category', '',
     [{ value: '', label: 'Choose a level' },
-     ...reference.classifications.map((item) => ({ value: item.level, label: `${item.level} — ${item.name}` }))],
+     ...reference.classifications.map((item) => ({ value: item.level, label: item.name }))],
     prefix, { required: false }
   );
   const typeControl = typeField.querySelector('select');

@@ -15,7 +15,7 @@ const state = { page: 1, coords: null };
 let searchSeq = 0;
 
 const dom = {};
-['q', 'category', 'region', 'district', 'city', 'service-other', 'insurance', 'classification', 'type', 'is24',
+['q', 'category', 'region', 'district', 'city', 'service-other', 'insurance', 'classification', 'type', 'ward', 'is24',
  'hasamb', 'results', 'results-count', 'results-title', 'pager', 'emergency-btn',
  'emergency-panel', 'locate-btn', 'locate-status', 'search-form', 'service-checks',
  'search-btn', 'search-feedback', 'suggestions', 'busy-legend',
@@ -37,7 +37,7 @@ async function loadReference() {
   insurance.forEach((i) => dom.insurance.appendChild(el('option', { value: i, text: i })));
   classifications.forEach((c) =>
     dom.classification.appendChild(
-      el('option', { value: c.level, text: `${c.level} — ${c.name}` })
+      el('option', { value: c.level, text: c.name, title: c.description })
     )
   );
 
@@ -99,6 +99,7 @@ function currentParams() {
     insurance: dom.insurance.value,
     classification: dom.classification.value,
     type: dom.type.value,
+    ward: dom.ward.value,
     service: selectedServices(),
     page: state.page,
     page_size: 20,
@@ -163,10 +164,11 @@ function searchSummary(params) {
   const parts = [];
   if (params.q) parts.push(`“${params.q}”`);
   if (params.category) parts.push(option(dom.category).text);
+  if (params.classification) parts.push(params.classification);
   const where = [params.city, params.district, params.region].filter(Boolean);
   if (where.length) parts.push(where.join(', '));
   if (state.coords) parts.push('near you');
-  const extra = params.service.length + [params.insurance, params.classification, params.type,
+  const extra = params.service.length + [params.insurance, params.type, params.ward,
     params.is_24_hour, params.has_ambulance].filter(Boolean).length;
   if (extra) parts.push(extra === 1 ? '1 more filter' : `${extra} more filters`);
   return parts.length ? parts.join(' · ') : 'All types of care, all of Ghana';
@@ -194,12 +196,8 @@ function showResults() {
 const RESULT_NOUN = {
   hospital: ['hospital', 'hospitals'],
   clinic: ['clinic', 'clinics'],
-  laboratory: ['place with a laboratory', 'places with a laboratory'],
+  laboratory: ['place with a medical laboratory', 'places with a medical laboratory'],
   pharmacy: ['pharmacy', 'pharmacies'],
-  imaging: ['place for scans and X-rays', 'places for scans and X-rays'],
-  dental: ['place for dental care', 'places for dental care'],
-  eye: ['place for eye care', 'places for eye care'],
-  maternity: ['place for maternity care', 'places for maternity care'],
   hearse: ['hearse service', 'hearse services'],
   caregiver: ['caregiver', 'caregivers'],
 };

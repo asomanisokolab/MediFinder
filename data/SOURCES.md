@@ -57,10 +57,15 @@ again.
 - **type:** `operator:type` when present. Otherwise government if the name
   says CHPS, District, Municipal, Regional, Teaching, Polyclinic, Health
   Centre and so on. Otherwise private.
-- **classification:** GHS level from the name (Teaching → A, Regional → B,
-  District or Municipal → C, Polyclinic → D, Health Centre or Clinic → E,
-  CHPS → F). Private facilities are "Private". Pharmacies, hearse services
-  and caregivers are "Not classified".
+- **classification:** medical facility category from the name (Teaching
+  hospital, Regional hospital, Polyclinic, CHPS compound / Maternity home,
+  Specialised hospital / clinic for specialist, eye, dental, maternity and
+  similar names, District / Municipal hospital, Health centre). A government
+  facility with no such word is a District / Municipal hospital or Health
+  centre; a private one stays "Not classified". The rules are
+  `facility_class()` in `backend/app/reference.py`, shared with the app.
+  Pharmacies, laboratories, hearse services and caregivers are "Not
+  classified".
 - **region / district:** the boundary polygon the point falls in.
 - **city:** the address tag, or else the nearest OpenStreetMap city or town
   within 25 km.

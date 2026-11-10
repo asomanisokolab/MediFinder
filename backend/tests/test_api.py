@@ -8,10 +8,13 @@ filter, ambulance coverage-before-distance, emergency mode with and without
 GPS, the 24-hour staleness rule, admin authorisation boundaries, and the
 contact request -> superadmin-created account -> first sign-in flow.
 """
+import os
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+# The suite makes more requests a minute than one real visitor is allowed.
+os.environ.setdefault("MEDIFINDER_RATE_LIMIT", "100000")
 
 from fastapi.testclient import TestClient  # noqa: E402
 
@@ -114,7 +117,7 @@ def test_contact_request_to_first_sign_in():
         "email": request["email"],
         "full_name": payload["contact_name"],
         "phone": payload["phone"],
-        "classification": "Level E",
+        "classification": "Health centre",
         "region": "Volta",
         "city": "Hohoe",
     }
@@ -508,7 +511,7 @@ def test_superadmin_can_manage_directory_and_review_changes():
         facility_record = Facility(
             name="Superadmin Deletion Test Facility",
             type="private",
-            classification="Private",
+            classification="Not classified",
             region="Greater Accra",
             lat=5.57,
             lng=-0.21,
@@ -552,7 +555,7 @@ def test_superadmin_can_manage_directory_and_review_changes():
         f"{API}/superadmin/facilities/{facility_id}",
         headers=super_headers,
     )
-    check("superadmin can permanently delete a facility", deleted_facility.status_code == 204)
+    check("superadmin can permanently delete a facility", deleted_facility.status_code == 204, deleted_facility.text[:300])
     with SessionLocal() as db:
         check(
             "facility deletion removes scoped admins",
@@ -576,7 +579,23 @@ def test_reference():
     services = client.get(f"{API}/services").json()
     check("Dental is in the service catalogue", "Dental" in services)
     classes = client.get(f"{API}/classifications").json()
-    check("7 classification levels", len(classes) == 7, f"got {len(classes)}")
+    check("8 medical facility categories, smallest first",
+          [c["name"] for c in classes][:1] == ["CHPS compound / Maternity home"]
+          and [c["name"] for c in classes][-1] == "Teaching hospital" and len(classes) == 8)
+    check("Cardio therapy and Spirometry are services",
+          "Cardio therapy" in services and "Spirometry" in services)
+    insurers = client.get(f"{API}/insurance").json()
+    check("Premium and Assurance insurance are listed next to NHIS",
+          insurers[:0] == [] and {"NHIS", "Premium insurance", "Assurance insurance"} <= set(insurers))
+    kinds = [c["value"] for c in client.get(f"{API}/care-types").json()]
+    check("scans are part of the medical laboratory; eye, dental, maternity are services",
+          "imaging" not in kinds and "eye" not in kinds and "laboratory" in kinds)
+    teaching = client.get(f"{API}/facilities", params={"classification": "Teaching hospital"}).json()
+    check("search by medical facility category",
+          teaching["total"] > 0 and all(f["classification"] == "Teaching hospital" for f in teaching["items"]))
+    eye = client.get(f"{API}/facilities/search", params={"category": "eye", "page_size": 100}).json()
+    check("an old app asking for eye care gets facilities offering it",
+          eye["total"] > 0 and all("Eye Care" in f["services"] for f in eye["items"]))
 
 
 def test_facility_listing_and_pagination():
@@ -599,8 +618,8 @@ def test_dental_filter():
     standalone = [f for f in items if f["services"] == ["Dental"]]
     check("standalone dental clinics are present", len(standalone) > 0)
     check(
-        "standalone dental clinics take the Private classification",
-        all(f["classification"] == "Private" for f in standalone),
+        "standalone dental clinics are specialised clinics",
+        all(f["classification"] == "Specialised hospital / clinic" for f in standalone),
     )
 
 
@@ -841,7 +860,7 @@ def test_open_data_directory():
     with SessionLocal() as db:
         merged = db.get(Facility, teaching[0]["id"])
         check("merged record is marked as merged", merged.source == "osm+seed", merged.source)
-        check("merged record keeps the curated classification", merged.classification == "Level A")
+        check("merged record keeps the curated classification", merged.classification == "Teaching hospital")
         check("merged record gains a district", bool(merged.district))
 
     pharmacies = client.get(
@@ -1018,6 +1037,32 @@ def test_busy_status():
     with SessionLocal() as db:
         db.query(BusyReport).filter(BusyReport.facility_id.in_([facility_id, own])).delete()
         db.commit()
+
+
+def test_wards():
+    login = client.post(
+        f"{API}/admin/login", json={"email": "facility@medifinder.gh", "password": "changeme123"}
+    ).json()
+    headers = {"Authorization": f"Bearer {login['access_token']}"}
+    own = login["facility_id"]
+    check("wards need sign-in",
+          client.put(f"{API}/facilities/{own}/wards", json={"wards": ["male"]}).status_code == 401)
+    check("an unknown ward is refused",
+          client.put(f"{API}/facilities/{own}/wards", json={"wards": ["vip"]},
+                     headers=headers).status_code == 422)
+    saved = client.put(f"{API}/facilities/{own}/wards", json={"wards": ["male", "children"]},
+                       headers=headers)
+    check("a hospital can list its wards", saved.status_code == 200
+          and saved.json()["wards"] == ["children", "male"])
+    check("the profile shows the wards",
+          client.get(f"{API}/facilities/{own}").json()["wards"] == ["children", "male"])
+    children = client.get(f"{API}/facilities", params={"ward": "children", "page_size": 100}).json()
+    check("search finds facilities with a children's ward",
+          any(f["id"] == own for f in children["items"])
+          and all("children" in f["wards"] for f in children["items"]))
+    female = client.get(f"{API}/facilities", params={"ward": "female", "page_size": 100}).json()
+    check("and leaves out ones without that ward", all(f["id"] != own for f in female["items"]))
+    client.put(f"{API}/facilities/{own}/wards", json={"wards": []}, headers=headers)
 
 
 def main() -> int:

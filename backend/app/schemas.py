@@ -13,10 +13,9 @@ Email = Annotated[
 ]
 FacilityCategory = Literal["hospital", "clinic", "laboratory", "pharmacy", "hearse", "caregiver"]
 # Keys of reference.CARE_TYPES.
-CareType = Literal[
-    "hospital", "clinic", "laboratory", "pharmacy", "imaging", "dental", "eye", "maternity",
-    "hearse", "caregiver",
-]
+CareType = Literal["hospital", "clinic", "laboratory", "pharmacy", "hearse", "caregiver"]
+# Keys of reference.WARDS.
+Ward = Literal["children", "female", "male"]
 BusyLevel = Literal["not_busy", "less_busy", "busy"]
 # Keys of reference.ORGANIZATION_TYPES.
 OrganizationType = Literal[
@@ -118,6 +117,7 @@ class FacilitySummary(BaseModel):
     services: list[str] = []
     # The facility's category first, then any other kinds of care it offers.
     care_types: list[str] = []
+    wards: list[str] = []
     beds: BedsOut | None = None
     busy: BusyOut | None = None
 
@@ -282,6 +282,10 @@ class ServicesUpdateIn(BaseModel):
     services: list[ServiceStatusIn]
 
 
+class WardsUpdateIn(BaseModel):
+    wards: list[Ward] = Field(max_length=3)
+
+
 class OfferedServiceIn(BaseModel):
     service_name: str = Field(min_length=1, max_length=80)
     care_type: CareType
@@ -351,6 +355,8 @@ class SuperadminFacilityUpdateIn(BaseModel):
     insurance: list[InsuranceName] = Field(default_factory=list, max_length=100)
     total_beds: int | None = Field(default=None, ge=0, le=10000)
     available_beds: int | None = Field(default=None, ge=0, le=10000)
+    # None leaves the wards as they are.
+    wards: list[Ward] | None = Field(default=None, max_length=3)
 
 
 class SuperadminProviderUpdateIn(BaseModel):

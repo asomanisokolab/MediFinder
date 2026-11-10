@@ -27,8 +27,8 @@ export function FacilityKindChips({ facility }: { facility: FacilitySummary }) {
   return (
     <>
       <Chip label={CATEGORY_LABEL[facility.category] ?? facility.category} />
-      {/* "Private" as a level would repeat the ownership chip. */}
-      {isHealthFacility(facility) && facility.classification !== 'Private' ? (
+      {/* Only a known category; "Private" (older data) would repeat the ownership chip. */}
+      {isHealthFacility(facility) && !['Private', 'Not classified'].includes(facility.classification) ? (
         <Chip label={facility.classification} />
       ) : null}
       {extra.slice(0, 3).map((t) => (

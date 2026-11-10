@@ -6,7 +6,7 @@ natively, so nothing here is needed after the swap -- see geo.py.
 """
 import math
 
-from sqlalchemy import create_engine, event, inspect, text
+from sqlalchemy import bindparam, create_engine, event, inspect, text
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from .config import settings
@@ -67,6 +67,7 @@ _ADDED_COLUMNS = [
     ("facilities", "source_ref", "VARCHAR(120) NOT NULL DEFAULT ''"),
     ("facilities", "website", "VARCHAR(200) NOT NULL DEFAULT ''"),
     ("services", "care_type", "VARCHAR(30) NOT NULL DEFAULT ''"),
+    ("facilities", "wards", "VARCHAR(60) NOT NULL DEFAULT ''"),
 ]
 
 # Tables no longer in the models. Only dropped by the destructive seed
@@ -87,7 +88,42 @@ def ensure_schema() -> None:
                 conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}"))
         # create_all() only indexes tables it creates.
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_services_care_type ON services (care_type)"))
+        _fold_care_types(conn)
         _fill_care_types(conn)
+        _update_classifications(conn)
+
+
+def _fold_care_types(conn) -> None:
+    """Scans and X-rays now belong to the laboratory, and eye, dental and
+    maternity care to the hospital or clinic itself."""
+    from .reference import FOLDED_CARE_TYPES
+
+    for old, new in FOLDED_CARE_TYPES.items():
+        if new:
+            conn.execute(text("UPDATE services SET care_type = :n WHERE care_type = :o"),
+                         {"n": new, "o": old})
+        else:
+            conn.execute(text("UPDATE services SET care_type = '' WHERE care_type = :o"), {"o": old})
+
+
+def _update_classifications(conn) -> None:
+    """Facilities saved with the old Level A-F or "Private" get a medical
+    facility category. Runs only while such rows remain."""
+    from .reference import FACILITY_CLASS_NAMES, UNCLASSIFIED, facility_class
+
+    rows = conn.execute(text(
+        "SELECT id, name, category, type, classification FROM facilities "
+        "WHERE classification NOT IN :known"
+    ).bindparams(bindparam("known", expanding=True)),
+        {"known": [*FACILITY_CLASS_NAMES, UNCLASSIFIED]}).all()
+    for fid, name, category, ownership, old in rows:
+        services = conn.execute(
+            text("SELECT service_name FROM services WHERE facility_id = :f"), {"f": fid}
+        ).scalars().all()
+        conn.execute(
+            text("UPDATE facilities SET classification = :c WHERE id = :f"),
+            {"c": facility_class(name, category, ownership, old, services), "f": fid},
+        )
 
 
 def _fill_care_types(conn) -> None:

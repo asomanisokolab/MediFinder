@@ -212,10 +212,10 @@ def story():
             "It keeps its listing current. <b>How busy are you right now?</b> sets "
             "the red, yellow or green status the public sees for the next 3 hours. "
             "<b>What you offer</b> has a <b>Kinds of care</b> dropdown (Hospital, "
-            "Clinic, Laboratory, Pharmacy, Scan and X-ray and more; tick every one that "
+            "Clinic, Medical laboratory, Pharmacy and more; tick every one that "
             "applies) and the services under each, picked from suggestions or typed in. "
-            "Hospitals and clinics also update bed counts; ambulance services update "
-            "fleet availability.",
+            "Hospitals and clinics also tick their <b>Wards</b> (children's, female, "
+            "male) and update bed counts; ambulance services update fleet availability.",
         ),
         p("<b>A new listing is hidden from public search and emergency mode until its "
           "location is set</b>, so no one is sent to a guessed position. If the "

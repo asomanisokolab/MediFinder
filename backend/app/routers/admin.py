@@ -30,6 +30,7 @@ from ..schemas import (
     BusyOut,
     BusyReportIn,
     OfferingsUpdateIn,
+    WardsUpdateIn,
     FleetUpdateIn,
     LocationIn,
     LoginIn,
@@ -358,6 +359,33 @@ def update_offerings(
         "care_types": detail["care_types"],
         "services": detail["service_detail"],
     }
+
+
+@router.put("/facilities/{facility_id}/wards")
+def update_wards(
+    facility_id: int,
+    payload: WardsUpdateIn,
+    admin=Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Which wards a hospital or clinic has: children's, female, male."""
+    require_facility(admin, facility_id)
+    facility = db.get(Facility, facility_id)
+    if facility is None:
+        raise HTTPException(status_code=404, detail="Facility not found")
+    from ..reference import HEALTH_FACILITY_CATEGORIES, WARDS
+
+    if facility.category not in HEALTH_FACILITY_CATEGORIES:
+        raise HTTPException(status_code=422, detail="Only hospitals and clinics list wards.")
+    wards = ",".join(w for w in WARDS if w in payload.wards)
+    _record_change(
+        db, admin, "facility", facility.id, facility.name, "wards.updated",
+        {"wards": {"before": facility.wards, "after": wards}},
+    )
+    facility.wards = wards
+    facility.last_updated = utcnow()
+    db.commit()
+    return {"facility_id": facility_id, "wards": [w for w in WARDS if w in wards.split(",")]}
 
 
 @router.put("/facilities/{facility_id}/busy", response_model=BusyOut)

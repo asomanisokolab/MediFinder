@@ -8,7 +8,7 @@ import { BusyLegend, FacilityCard } from '@/components/Cards';
 import { Picker, type Option } from '@/components/Picker';
 import { Button, DataBanner, Feedback, Loading, Notice, Toggle } from '@/components/ui';
 import { api, type FacilityFilters, type FacilitySummary, type Page } from '@/lib/api';
-import { CATEGORY_LABEL } from '@/lib/format';
+import { CATEGORY_LABEL, WARD_LABEL } from '@/lib/format';
 import { useLocation } from '@/lib/location';
 import { colors, radius, shadow } from '@/lib/theme';
 import { useQuery } from '@/lib/useQuery';
@@ -17,15 +17,12 @@ const CATEGORIES: Option[] = [
   { value: '', label: 'All care' },
   { value: 'hospital', label: 'Hospitals' },
   { value: 'clinic', label: 'Clinics' },
-  { value: 'laboratory', label: 'Laboratories' },
+  { value: 'laboratory', label: 'Medical labs' },
   { value: 'pharmacy', label: 'Pharmacies' },
-  { value: 'imaging', label: 'Scan and X-ray' },
-  { value: 'dental', label: 'Dental' },
-  { value: 'eye', label: 'Eye care' },
-  { value: 'maternity', label: 'Maternity' },
   { value: 'hearse', label: 'Hearse' },
   { value: 'caregiver', label: 'Caregivers' },
 ];
+const WARDS: Option[] = Object.entries(WARD_LABEL).map(([value, label]) => ({ value, label }));
 const OWNERSHIP: Option[] = [
   { value: 'government', label: 'Government' },
   { value: 'private', label: 'Private' },
@@ -38,12 +35,8 @@ const toOptions = (values: string[] | undefined): Option[] =>
 const RESULT_NOUN: Record<string, [string, string]> = {
   hospital: ['hospital', 'hospitals'],
   clinic: ['clinic', 'clinics'],
-  laboratory: ['place with a laboratory', 'places with a laboratory'],
+  laboratory: ['place with a medical laboratory', 'places with a medical laboratory'],
   pharmacy: ['pharmacy', 'pharmacies'],
-  imaging: ['place for scans and X-rays', 'places for scans and X-rays'],
-  dental: ['place for dental care', 'places for dental care'],
-  eye: ['place for eye care', 'places for eye care'],
-  maternity: ['place for maternity care', 'places for maternity care'],
   hearse: ['hearse service', 'hearse services'],
   caregiver: ['caregiver', 'caregivers'],
 };
@@ -81,6 +74,8 @@ export default function FindCare() {
   const [district, setDistrict] = useState('');
   const [city, setCity] = useState('');
   const [ownership, setOwnership] = useState('');
+  const [facilityClass, setFacilityClass] = useState('');
+  const [ward, setWard] = useState('');
   const [service, setService] = useState('');
   const [insurance, setInsurance] = useState('');
   const [is24, setIs24] = useState(false);
@@ -108,6 +103,8 @@ export default function FindCare() {
       district,
       city,
       type: ownership,
+      classification: facilityClass,
+      ward,
       service: service ? [service] : undefined,
       insurance,
       is_24_hour: is24,
@@ -141,9 +138,9 @@ export default function FindCare() {
 
   // Dropdown lists. Search still works if they fail to load.
   const reference = useQuery('reference', () =>
-    Promise.all([api.regions(), api.services(), api.insurance()])
+    Promise.all([api.regions(), api.services(), api.insurance(), api.classifications()])
   );
-  const [regions, services, insurers] = reference.data ?? [[], [], []];
+  const [regions, services, insurers, classes] = reference.data ?? [[], [], [], []];
   const districts = useQuery(region ? `districts:${region}` : null, () => api.districts(region));
   const cities = useQuery(region ? `cities:${region}:${district}` : null, () =>
     api.localities(region, district || undefined)
@@ -206,7 +203,7 @@ export default function FindCare() {
     }
   }
 
-  const activeFilters = [ownership, service, insurance].filter(Boolean).length + (is24 ? 1 : 0) + (hasAmbulance ? 1 : 0);
+  const activeFilters = [ownership, service, insurance, ward].filter(Boolean).length + (is24 ? 1 : 0) + (hasAmbulance ? 1 : 0);
   const folded = wantFold && !loading && !error && total > 0;
 
   // Once a Search press has an answer: results found, the folded page starts
@@ -231,10 +228,11 @@ export default function FindCare() {
     if (applied.q) parts.push(`“${applied.q}”`);
     const kind = CATEGORIES.find((c) => c.value && c.value === applied.category);
     if (kind) parts.push(kind.label);
+    if (applied.classification) parts.push(applied.classification);
     const where = [applied.city, applied.district, applied.region].filter(Boolean);
     if (where.length) parts.push(where.join(', '));
     if (coords) parts.push('near you');
-    const extra = [applied.type, applied.service?.length, applied.insurance, applied.is_24_hour, applied.has_ambulance]
+    const extra = [applied.type, applied.service?.length, applied.insurance, applied.ward, applied.is_24_hour, applied.has_ambulance]
       .filter(Boolean).length;
     if (extra) parts.push(extra === 1 ? '1 more filter' : `${extra} more filters`);
     return parts.length ? parts.join(' · ') : 'All types of care, all of Ghana';
@@ -361,6 +359,13 @@ export default function FindCare() {
           />
         </View>
         <Picker label="City or town" value={city} onChange={setCity} options={toOptions(cities.data)} disabled={!region} />
+        <Picker
+          label="Medical facility category"
+          value={facilityClass}
+          onChange={setFacilityClass}
+          options={classes.map((c) => ({ value: c.level, label: c.name }))}
+          placeholder="All categories"
+        />
 
         <View style={styles.actions}>
           <Button
@@ -409,6 +414,7 @@ export default function FindCare() {
               <Picker style={styles.half} label="Insurance" value={insurance} onChange={setInsurance} options={toOptions(insurers)} placeholder="Any" />
             </View>
             <Picker label="Service needed" value={service} onChange={setService} options={toOptions(services)} placeholder="Any service" />
+            <Picker label="Ward" value={ward} onChange={setWard} options={WARDS} placeholder="Any ward" />
           </View>
         ) : null}
       </View>
